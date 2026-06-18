@@ -200,6 +200,8 @@ git config --global credential.credentialStore cache
 rm gcm-linux-x64.deb
 echo "Git Credential Manager configured with memory cache"
 
+git config --global core.editor "nvim"
+
 # --- Final summary ---
 echo -e "\n${CYAN}==================================================${NC}"
 echo -e "${GREEN}All automated steps complete!${NC}"
