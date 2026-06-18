@@ -63,7 +63,8 @@ sudo apt upgrade -y
 sudo apt install -y \
   ibus-hangul language-pack-ko \
   cargo libevdev-dev \
-  curl git ripgrep fd-find python3 python3-pip nodejs npm
+  gnome-shell-extension-manager gnome-tweaks \
+  curl git ripgrep fd-find fzf sd python3 python3-pip nodejs npm
 
 if ! command -v fd &>/dev/null; then
   sudo ln -sf "$(which fdfind)" /usr/local/bin/fd
@@ -196,7 +197,8 @@ wget "$GCM_DEB_URL" -O gcm-linux-x64.deb
 sudo dpkg -i gcm-linux-x64.deb || sudo apt-get install -f -y
 
 git-credential-manager configure
-git config --global credential.credentialStore cache
+# git config --global credential.credentialStore cache
+git config --global credential.credentialStore secretservice
 rm gcm-linux-x64.deb
 echo "Git Credential Manager configured with memory cache"
 

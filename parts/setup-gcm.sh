@@ -17,7 +17,8 @@ sudo dpkg -i gcm-linux-x64.deb || sudo apt-get install -f -y
 
 # 3. Configure Git Credential Manager
 git-credential-manager configure
-git config --global credential.credentialStore cache
+# git config --global credential.credentialStore cache
+git config --global credential.credentialStore secretservice
 
 # 4. Clean up the downloaded file
 rm gcm-linux-x64.deb
