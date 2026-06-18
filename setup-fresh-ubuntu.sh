@@ -57,7 +57,7 @@ echo "Targeting device: ${MOUSE_DEVICE}"
 echo -e "\n${GREEN}All questions answered — everything else runs unattended.${NC}"
 
 # --- 1. System update + all packages, once ---
-echo -e "\n${CYAN}[1/6] Updating system and installing packages...${NC}"
+echo -e "\n${CYAN}[1/7] Updating system and installing packages...${NC}"
 sudo apt update -y
 sudo apt upgrade -y
 sudo apt install -y \
@@ -70,11 +70,11 @@ if ! command -v fd &>/dev/null; then
 fi
 
 # --- 2. Hangul IME ---
-echo -e "\n${CYAN}[2/6] Setting up Korean Hangul IME...${NC}"
+echo -e "\n${CYAN}[2/7] Setting up Korean Hangul IME...${NC}"
 ibus restart
 
 # --- 3. Nerd Font ---
-echo -e "\n${CYAN}[3/6] Installing JetBrainsMono Nerd Font...${NC}"
+echo -e "\n${CYAN}[3/7] Installing JetBrainsMono Nerd Font...${NC}"
 FONT_DIR="$HOME/.local/share/fonts"
 mkdir -p "$FONT_DIR"
 curl -fLo "$FONT_DIR/JetBrainsMono.zip" https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
@@ -83,7 +83,7 @@ rm "$FONT_DIR/JetBrainsMono.zip"
 fc-cache -f "$FONT_DIR"
 
 # --- 4. GNOME settings (after font install) ---
-echo -e "\n${CYAN}[4/6] Applying GNOME settings...${NC}"
+echo -e "\n${CYAN}[4/7] Applying GNOME settings...${NC}"
 gsettings set org.gnome.desktop.interface text-scaling-factor 1.125
 gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrainsMono Nerd Font 12'
 if gsettings list-schemas | grep -q "org.gnome.shell.extensions.dash-to-dock"; then
@@ -93,7 +93,7 @@ else
 fi
 
 # --- 5. evsieve scroll inversion ---
-echo -e "\n${CYAN}[5/6] Building and installing evsieve...${NC}"
+echo -e "\n${CYAN}[5/7] Building and installing evsieve...${NC}"
 cd /tmp
 wget "https://github.com/KarsMulder/evsieve/archive/v${EVSIEVE_VERSION}.tar.gz" -O "evsieve-${EVSIEVE_VERSION}.tar.gz"
 tar -xzf "evsieve-${EVSIEVE_VERSION}.tar.gz"
@@ -120,7 +120,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now scroll-invert
 
 # --- 6. Neovim + LazyVim ---
-echo -e "\n${CYAN}[6/6] Installing Neovim and LazyVim...${NC}"
+echo -e "\n${CYAN}[6/7] Installing Neovim and LazyVim...${NC}"
 NVIM_URL=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest |
   grep "browser_download_url.*nvim-linux-x86_64.tar.gz\"" |
   cut -d '"' -f 4)
@@ -179,6 +179,26 @@ return {
   },
 }
 EOF
+
+# --- 7. Git Credential Manager (GCM) ---
+echo -e "\n${CYAN}[7/7] Installing and configuring Git Credential Manager...${NC}"
+GCM_DEB_URL=$(curl -s https://api.github.com/repos/git-ecosystem/git-credential-manager/releases/latest |
+  grep "browser_download_url.*linux-x64.*\.deb\"" |
+  cut -d '"' -f 4)
+
+if [ -z "$GCM_DEB_URL" ]; then
+  echo -e "${RED}Error: Failed to fetch the GCM download URL.${NC}"
+  exit 1
+fi
+
+cd /tmp
+wget "$GCM_DEB_URL" -O gcm-linux-x64.deb
+sudo dpkg -i gcm-linux-x64.deb || sudo apt-get install -f -y
+
+git-credential-manager configure
+git config --global credential.credentialStore cache
+rm gcm-linux-x64.deb
+echo "Git Credential Manager configured with memory cache"
 
 # --- Final summary ---
 echo -e "\n${CYAN}==================================================${NC}"
