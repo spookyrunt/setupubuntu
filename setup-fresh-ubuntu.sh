@@ -113,12 +113,13 @@ sudo tee /etc/systemd/system/scroll-invert.service >/dev/null <<EOF
 [Unit]
 Description=Invert scroll wheel for selected mouse
 After=multi-user.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/evsieve --input ${MOUSE_DEVICE} grab persist=reopen --map rel:wheel rel:wheel:0-x --map rel:wheel_hi_res rel:wheel_hi_res:0-x --output
-Restart=on-failure
-RestartSec=2
+Restart=always
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
