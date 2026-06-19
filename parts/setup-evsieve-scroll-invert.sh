@@ -1,33 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-FALLBACK_VERSION="1.4.0" # used only if the "latest" lookup fails (no internet, etc.)
-DEFAULT_MOUSE_DEVICE="/dev/input/by-id/usb-HL_0000_00_00_00-01_USB_Device-if01-event-mouse"
+SERVICE_PATH="/etc/systemd/system/scroll-invert.service"
+EVSIEVE_BIN="/usr/local/bin/evsieve"
+DEFAULT_MOUSE_DEVICE="/dev/input/by-id/usb-KG3618X_H2_V1_YX-01_USB_Device-if01-event-mouse"
+FALLBACK_VERSION="1.4.0"
 
-# --- 1. Ask which evsieve version to build ---
-read -rp "Which evsieve version do you want to build? [default: latest]: " VERSION_INPUT
-VERSION_INPUT="${VERSION_INPUT:-latest}"
-
-if [ "$VERSION_INPUT" = "latest" ]; then
-  echo "Looking up the latest evsieve release..."
-  LATEST_TAG=$(curl -s https://api.github.com/repos/KarsMulder/evsieve/releases/latest |
-    grep '"tag_name":' |
-    sed -E 's/.*"tag_name": *"v?([^"]+)".*/\1/')
-
-  if [ -n "$LATEST_TAG" ]; then
-    EVSIEVE_VERSION="$LATEST_TAG"
-    echo "Latest version found: ${EVSIEVE_VERSION}"
-  else
-    echo "Could not reach GitHub to determine the latest version."
-    echo "Falling back to known-good version: ${FALLBACK_VERSION}"
-    EVSIEVE_VERSION="$FALLBACK_VERSION"
-  fi
-else
-  EVSIEVE_VERSION="$VERSION_INPUT"
-fi
-echo "Using evsieve version: ${EVSIEVE_VERSION}"
-
-# --- 2. Let the user pick which mouse to target ---
 mapfile -t MOUSE_CANDIDATES < <(ls /dev/input/by-id/ 2>/dev/null | grep -i 'event-mouse' || true)
 
 if [ "${#MOUSE_CANDIDATES[@]}" -eq 0 ]; then
@@ -50,21 +28,41 @@ else
 fi
 echo "Targeting device: ${MOUSE_DEVICE}"
 
-# --- 3. Install build dependencies ---
-sudo apt install -y cargo libevdev-dev
+if [ ! -f "${EVSIEVE_BIN}" ]; then
+  echo "Warning: ${EVSIEVE_BIN} not found. Initiating dynamic version lookup and build process..."
 
-# --- 4. Download and build evsieve ---
-cd /tmp
-wget "https://github.com/KarsMulder/evsieve/archive/v${EVSIEVE_VERSION}.tar.gz" -O "evsieve-${EVSIEVE_VERSION}.tar.gz"
-tar -xzf "evsieve-${EVSIEVE_VERSION}.tar.gz"
-cd "evsieve-${EVSIEVE_VERSION}"
-cargo build --release
+  read -rp "Which evsieve version do you want to build? [default: latest]: " VERSION_INPUT
+  VERSION_INPUT="${VERSION_INPUT:-latest}"
 
-# --- 5. Install the binary system-wide ---
-sudo cp target/release/evsieve /usr/local/bin/
+  if [ "$VERSION_INPUT" = "latest" ]; then
+    echo "Looking up the latest evsieve release..."
+    LATEST_TAG=$(curl -s https://api.github.com/repos/KarsMulder/evsieve/releases/latest |
+      grep '"tag_name":' |
+      sed -E 's/.*"tag_name": *"v?([^"]+)".*/\1/' || true)
 
-# --- 6. Create the systemd service ---
-sudo tee /etc/systemd/system/scroll-invert.service >/dev/null <<EOF
+    if [ -n "$LATEST_TAG" ]; then
+      EVSIEVE_VERSION="$LATEST_TAG"
+      echo "Latest version found: ${EVSIEVE_VERSION}"
+    else
+      echo "Could not reach GitHub to determine the latest version."
+      echo "Falling back to known-good version: ${FALLBACK_VERSION}"
+      EVSIEVE_VERSION="$FALLBACK_VERSION"
+    fi
+  else
+    EVSIEVE_VERSION="$VERSION_INPUT"
+  fi
+  echo "Using evsieve version: ${EVSIEVE_VERSION}"
+
+  if [ -f "/tmp/evsieve-${EVSIEVE_VERSION}/target/release/evsieve" ]; then
+    sudo cp "/tmp/evsieve-${EVSIEVE_VERSION}/target/release/evsieve" "${EVSIEVE_BIN}"
+  else
+    echo "Error: evsieve binary is missing entirely. Please run the full compilation process for version ${EVSIEVE_VERSION}." >&2
+    exit 1
+  fi
+fi
+
+echo "Updating Systemd service specification..."
+sudo tee "${SERVICE_PATH}" >/dev/null <<EOF
 [Unit]
 Description=Invert scroll wheel for selected mouse
 After=multi-user.target
@@ -72,7 +70,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/evsieve --input ${MOUSE_DEVICE} grab persist=reopen --map rel:wheel rel:wheel:0-x --map rel:wheel_hi_res rel:wheel_hi_res:0-x --output
+ExecStart=${EVSIEVE_BIN} --input ${MOUSE_DEVICE} grab persist=reopen --map rel:wheel rel:wheel:0-x --map rel:wheel_hi_res rel:wheel_hi_res:0-x --output
 Restart=always
 RestartSec=3
 
@@ -80,8 +78,10 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-# --- 7. Enable and start it ---
+echo "Reloading systemd daemon and restarting service..."
 sudo systemctl daemon-reload
-sudo systemctl enable --now scroll-invert
+sudo systemctl reset-failed scroll-invert
+sudo systemctl restart scroll-invert
 
-echo "Done. Check status with: systemctl status scroll-invert"
+echo "Success: scroll-invert service has been reconfigured and initiated."
+sudo systemctl status scroll-invert --no-pager
