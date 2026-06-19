@@ -80,6 +80,7 @@ EOF
 
 echo "Reloading systemd daemon and restarting service..."
 sudo systemctl daemon-reload
+sudo systemctl enable scroll-invert
 sudo systemctl reset-failed scroll-invert
 sudo systemctl restart scroll-invert
 
