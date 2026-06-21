@@ -42,6 +42,12 @@ while IFS= read -r line || [ -n "$line" ]; do
   fi
 done <"$FSTAB_PATH"
 
+# Add .snapshots mount entry if not already present
+ROOT_DEV=$(findmnt -no SOURCE / | sed 's/\[.*\]//')
+if ! grep -qE '\s+/\.snapshots\s' "$TEMP_FSTAB"; then
+  echo -e "${ROOT_DEV} /.snapshots btrfs subvol=/.snapshots,defaults 0 0" >>"$TEMP_FSTAB"
+fi
+
 # Apply the changes
 mv "$TEMP_FSTAB" "$FSTAB_PATH"
 chmod 644 "$FSTAB_PATH"
