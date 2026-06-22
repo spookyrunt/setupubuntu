@@ -75,12 +75,12 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 ExecStart=/bin/sh -c '\\
-  TARGET_PATH=\$(find /dev/input/by-id/ -type l | xargs -r -I {} sh -c "\\
+  TARGET_PATH=\$(find /dev/input/by-id/ -type l -name "*event-mouse*" | xargs -r -I {} sh -c "\\
     udevadm info --query=property --name=\"{}\" | grep -q \"ID_VENDOR_ID=${VENDOR_ID}\" && \\
     udevadm info --query=property --name=\"{}\" | grep -q \"ID_MODEL_ID=${MODEL_ID}\" && \\
     echo \"{}\" \\
   " 2>/dev/null | head -n 1); \\
-  exec ${EVSIEVE_BIN} --input "\$TARGET_PATH" grab --map rel:wheel rel:wheel:0-x --map rel:wheel_hi_res rel:wheel_hi_res:0-x --output \\
+  exec ${EVSIEVE_BIN} --input "\$TARGET_PATH" grab persist=exit --map rel:wheel rel:wheel:0-x --map rel:wheel_hi_res rel:wheel_hi_res:0-x --output \\
 '
 Restart=always
 RestartSec=1
