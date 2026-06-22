@@ -3,7 +3,7 @@ set -euo pipefail
 
 SERVICE_PATH="/etc/systemd/system/scroll-invert.service"
 EVSIEVE_BIN="/usr/local/bin/evsieve"
-DEFAULT_MOUSE_DEVICE="/dev/input/by-id/usb-KG3618X_H2_V1_YX-01_USB_Device-if01-event-mouse"
+DEFAULT_MOUSE_DEVICE="/dev/input/by-id/usb-HL_0000_00_00_00-01_USB_Device-if01-event-mouse"
 FALLBACK_VERSION="1.4.0"
 
 mapfile -t MOUSE_CANDIDATES < <(ls /dev/input/by-id/ 2>/dev/null | grep -i 'event-mouse' || true)
@@ -26,6 +26,10 @@ else
     MOUSE_DEVICE="$DEFAULT_MOUSE_DEVICE"
   fi
 fi
+
+VENDOR_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_VENDOR_ID=' | cut -d= -f2)
+MODEL_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_MODEL_ID=' | cut -d= -f2)
+
 echo "Targeting device: ${MOUSE_DEVICE}"
 
 if [ ! -f "${EVSIEVE_BIN}" ]; then
@@ -70,9 +74,16 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStart=${EVSIEVE_BIN} --input ${MOUSE_DEVICE} grab persist=reopen --map rel:wheel rel:wheel:0-x --map rel:wheel_hi_res rel:wheel_hi_res:0-x --output
+ExecStart=/bin/sh -c '\\
+  TARGET_PATH=\$(find /dev/input/by-id/ -type l | xargs -r -I {} sh -c "\\
+    udevadm info --query=property --name=\"{}\" | grep -q \"ID_VENDOR_ID=${VENDOR_ID}\" && \\
+    udevadm info --query=property --name=\"{}\" | grep -q \"ID_MODEL_ID=${MODEL_ID}\" && \\
+    echo \"{}\" \\
+  " 2>/dev/null | head -n 1); \\
+  exec ${EVSIEVE_BIN} --input "\$TARGET_PATH" grab --map rel:wheel rel:wheel:0-x --map rel:wheel_hi_res rel:wheel_hi_res:0-x --output \\
+'
 Restart=always
-RestartSec=3
+RestartSec=1
 
 [Install]
 WantedBy=multi-user.target
