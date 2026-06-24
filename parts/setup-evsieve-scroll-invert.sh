@@ -80,7 +80,13 @@ ExecStart=/bin/sh -c '\\
     udevadm info --query=property --name=\"{}\" | grep -q \"ID_MODEL_ID=${MODEL_ID}\" && \\
     echo \"{}\" \\
   " 2>/dev/null | head -n 1); \\
-  exec ${EVSIEVE_BIN} --input "\$TARGET_PATH" grab persist=exit --map rel:wheel rel:wheel:0-x --map rel:wheel_hi_res rel:wheel_hi_res:0-x --output \\
+  exec ${EVSIEVE_BIN} \\
+    --input "\$TARGET_PATH" grab persist=exit \\
+    --map rel:wheel rel:wheel:0-x \\
+    --map rel:wheel_hi_res rel:wheel_hi_res:0-x \\
+    --map rel:hwheel rel:hwheel:0-x \\
+    --map rel:hwheel_hi_res rel:hwheel_hi_res:0-x \\
+    --output \\
 '
 Restart=always
 RestartSec=1
