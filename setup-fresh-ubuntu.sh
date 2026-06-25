@@ -11,59 +11,9 @@ echo -e "${CYAN}==================================================${NC}"
 echo -e "${YELLOW}Fresh Ubuntu Setup: Hangul, Nerd Font, GNOME, evsieve, Neovim, Btrfs/Snapper${NC}"
 echo -e "${CYAN}==================================================${NC}"
 
-# --- Gather all interactive input up front ---
-FALLBACK_EVSIEVE_VERSION="1.4.0"
-DEFAULT_MOUSE_DEVICE="/dev/input/by-id/usb-HL_0000_00_00_00-01_USB_Device-if01-event-mouse"
-
-echo -e "\n${CYAN}[evsieve] Configuration${NC}"
-read -rp "Which evsieve version do you want to build? [default: latest]: " VERSION_INPUT
-VERSION_INPUT="${VERSION_INPUT:-latest}"
-
-if [ "$VERSION_INPUT" = "latest" ]; then
-  echo "Looking up the latest evsieve release..."
-  LATEST_TAG=$(curl -s https://api.github.com/repos/KarsMulder/evsieve/releases/latest |
-    grep '"tag_name":' |
-    sed -E 's/.*"tag_name": *"v?([^"]+)".*/\1/' || true)
-  if [ -n "$LATEST_TAG" ]; then
-    EVSIEVE_VERSION="$LATEST_TAG"
-  else
-    echo "Could not reach GitHub. Falling back to: ${FALLBACK_EVSIEVE_VERSION}"
-    EVSIEVE_VERSION="$FALLBACK_EVSIEVE_VERSION"
-  fi
-else
-  EVSIEVE_VERSION="$VERSION_INPUT"
-fi
-echo "Using evsieve version: ${EVSIEVE_VERSION}"
-
-mapfile -t MOUSE_CANDIDATES < <(ls /dev/input/by-id/ 2>/dev/null | grep -i 'event-mouse' || true)
-if [ "${#MOUSE_CANDIDATES[@]}" -eq 0 ]; then
-  echo "No mouse devices found. Falling back to default: ${DEFAULT_MOUSE_DEVICE}"
-  MOUSE_DEVICE="$DEFAULT_MOUSE_DEVICE"
-else
-  echo "Available mouse devices:"
-  for i in "${!MOUSE_CANDIDATES[@]}"; do
-    echo "   $((i + 1))) ${MOUSE_CANDIDATES[$i]}"
-  done
-  read -rp "Select a device by number (or press Enter for the default): " CHOICE
-  if [[ "$CHOICE" =~ ^[0-9]+$ ]] && [ "$CHOICE" -ge 1 ] && [ "$CHOICE" -le "${#MOUSE_CANDIDATES[@]}" ]; then
-    MOUSE_DEVICE="/dev/input/by-id/${MOUSE_CANDIDATES[$((CHOICE - 1))]}"
-  else
-    echo "No valid selection made — using default: ${DEFAULT_MOUSE_DEVICE}"
-    MOUSE_DEVICE="$DEFAULT_MOUSE_DEVICE"
-  fi
-fi
-
-VENDOR_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_VENDOR_ID=' | cut -d= -f2)
-MODEL_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_MODEL_ID=' | cut -d= -f2)
-
-echo "Targeting device: ${MOUSE_DEVICE}"
-
-ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
-echo "Detected root filesystem type: ${ROOT_FSTYPE}"
-
-echo -e "\n${GREEN}All questions answered — everything else runs unattended.${NC}"
-
 # --- 1. System update + all packages, once (Snapper integrated) ---
+# Runs first so curl, git, inotify-tools, etc. are available for
+# everything below, before any interactive prompts.
 echo -e "\n${CYAN}[1/8] Updating system and installing packages...${NC}"
 sudo apt update -y
 sudo apt upgrade -y
@@ -72,11 +22,21 @@ sudo apt install -y \
   cargo libevdev-dev \
   gnome-shell-extension-manager gnome-tweaks \
   curl git ripgrep fd-find fzf sd python3 python3-pip nodejs npm \
-  snapper snapper-gui
+  snapper snapper-gui inotify-tools make gawk
 
 if ! command -v fd &>/dev/null; then
   sudo ln -sf "$(which fdfind)" /usr/local/bin/fd
 fi
+
+# Ubuntu's default /usr/bin/awk is mawk, which does not support the \s
+# regex class. grub-btrfs's snapshot-detection script relies on \s when
+# parsing `btrfs subvolume show` output to find the root subvolume UUID,
+# so under mawk it silently fails with "UUID of the root subvolume is
+# not available". Switch the system default to gawk to avoid this.
+sudo update-alternatives --set awk /usr/bin/gawk
+
+ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
+echo "Detected root filesystem type: ${ROOT_FSTYPE}"
 
 # --- 2. Hangul IME ---
 echo -e "\n${CYAN}[2/8] Setting up Korean Hangul IME...${NC}"
@@ -106,14 +66,81 @@ fi
 
 # --- 5. evsieve scroll inversion ---
 echo -e "\n${CYAN}[5/8] Building and installing evsieve...${NC}"
-cd /tmp
-wget "https://github.com/KarsMulder/evsieve/archive/v${EVSIEVE_VERSION}.tar.gz" -O "evsieve-${EVSIEVE_VERSION}.tar.gz"
-tar -xzf "evsieve-${EVSIEVE_VERSION}.tar.gz"
-cd "evsieve-${EVSIEVE_VERSION}"
-cargo build --release
-sudo cp target/release/evsieve /usr/local/bin/
 
-sudo tee /etc/systemd/system/scroll-invert.service >/dev/null <<EOF
+FALLBACK_EVSIEVE_VERSION="1.4.0"
+DEFAULT_MOUSE_DEVICE="/dev/input/by-id/usb-HL_0000_00_00_00-01_USB_Device-if01-event-mouse"
+
+read -rp "Which evsieve version do you want to build? [default: latest]: " VERSION_INPUT
+VERSION_INPUT="${VERSION_INPUT:-latest}"
+
+if [ "$VERSION_INPUT" = "latest" ]; then
+  echo "Looking up the latest evsieve release..."
+  LATEST_TAG=$(curl -s https://api.github.com/repos/KarsMulder/evsieve/releases/latest |
+    grep '"tag_name":' |
+    sed -E 's/.*"tag_name": *"v?([^"]+)".*/\1/' || true)
+  if [ -n "$LATEST_TAG" ]; then
+    EVSIEVE_VERSION="$LATEST_TAG"
+  else
+    echo "Could not reach GitHub. Falling back to: ${FALLBACK_EVSIEVE_VERSION}"
+    EVSIEVE_VERSION="$FALLBACK_EVSIEVE_VERSION"
+  fi
+else
+  EVSIEVE_VERSION="$VERSION_INPUT"
+fi
+echo "Using evsieve version: ${EVSIEVE_VERSION}"
+
+SKIP_SCROLL_INVERT=0
+
+mapfile -t MOUSE_CANDIDATES < <(ls /dev/input/by-id/ 2>/dev/null | grep -i 'event-mouse' || true)
+if [ "${#MOUSE_CANDIDATES[@]}" -eq 0 ]; then
+  echo "No mouse devices found. Falling back to default: ${DEFAULT_MOUSE_DEVICE}"
+  MOUSE_DEVICE="$DEFAULT_MOUSE_DEVICE"
+else
+  echo "Available mouse devices:"
+  for i in "${!MOUSE_CANDIDATES[@]}"; do
+    echo "   $((i + 1))) ${MOUSE_CANDIDATES[$i]}"
+  done
+  read -rp "Select a device by number (or press Enter for the default): " CHOICE
+  if [[ "$CHOICE" =~ ^[0-9]+$ ]] && [ "$CHOICE" -ge 1 ] && [ "$CHOICE" -le "${#MOUSE_CANDIDATES[@]}" ]; then
+    MOUSE_DEVICE="/dev/input/by-id/${MOUSE_CANDIDATES[$((CHOICE - 1))]}"
+  else
+    echo "No valid selection made — using default: ${DEFAULT_MOUSE_DEVICE}"
+    MOUSE_DEVICE="$DEFAULT_MOUSE_DEVICE"
+  fi
+fi
+
+# If the resolved device (selected or default) doesn't actually exist,
+# don't fail the whole step — just skip scroll-invert.
+if [ ! -e "$MOUSE_DEVICE" ]; then
+  echo -e "${YELLOW}Warning: ${MOUSE_DEVICE} does not exist on this machine.${NC}"
+  echo -e "${YELLOW}Skipping evsieve/scroll-invert setup.${NC}"
+  SKIP_SCROLL_INVERT=1
+  VENDOR_ID=""
+  MODEL_ID=""
+else
+  VENDOR_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_VENDOR_ID=' | cut -d= -f2)
+  MODEL_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_MODEL_ID=' | cut -d= -f2)
+  if [ -z "$VENDOR_ID" ] || [ -z "$MODEL_ID" ]; then
+    echo -e "${YELLOW}Warning: could not read vendor/model ID for ${MOUSE_DEVICE}.${NC}"
+    echo -e "${YELLOW}Skipping evsieve/scroll-invert setup.${NC}"
+    SKIP_SCROLL_INVERT=1
+  fi
+fi
+
+echo "Targeting device: ${MOUSE_DEVICE}"
+
+if [ "$SKIP_SCROLL_INVERT" -eq 1 ]; then
+  echo -e "${YELLOW}Skipping evsieve/scroll-invert setup: no usable mouse device found.${NC}"
+else
+  cd /tmp
+  wget "https://github.com/KarsMulder/evsieve/archive/v${EVSIEVE_VERSION}.tar.gz" -O "evsieve-${EVSIEVE_VERSION}.tar.gz"
+  tar -xzf "evsieve-${EVSIEVE_VERSION}.tar.gz"
+  cd "evsieve-${EVSIEVE_VERSION}"
+  cargo build --release
+  sudo cp target/release/evsieve /usr/local/bin/
+  EVSIEVE_BIN="/usr/local/bin/evsieve"
+
+  sudo tee /etc/systemd/system/scroll-invert.service >/dev/null <<EOF
 [Unit]
 Description=Invert scroll wheel for selected mouse
 After=multi-user.target
@@ -142,8 +169,9 @@ RestartSec=1
 WantedBy=multi-user.target
 EOF
 
-sudo systemctl daemon-reload
-sudo systemctl enable --now scroll-invert
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now scroll-invert
+fi
 
 # --- 6. Neovim + LazyVim ---
 echo -e "\n${CYAN}[6/8] Installing Neovim and LazyVim...${NC}"
@@ -228,26 +256,65 @@ echo "Git Credential Manager configured with secretservice"
 
 git config --global core.editor "nvim"
 
-# --- 8. Btrfs tuning + Snapper ---
+# --- 8. Btrfs root separation + fstab tuning + Snapper + grub-btrfs ---
 echo -e "\n${CYAN}[8/8] Checking filesystem and configuring Btrfs/Snapper...${NC}"
 if [ "$ROOT_FSTYPE" = "btrfs" ]; then
-  echo -e "${GREEN}Root filesystem is btrfs — applying mount tuning and snapper setup.${NC}"
+  echo -e "${GREEN}Root filesystem is btrfs — separating root, tuning fstab, and configuring snapper.${NC}"
 
-  # --- 8a. fstab mount option tuning (Using exact column substitution via awk) ---
+  # --- 8a. Separate root subvolume from snapshot tree ---
+  # Must run BEFORE snapper starts taking automated snapshots, so the
+  # root we end up on is a clean, independent subvolume rather than
+  # something nested under .snapshots.
+  ROOT_DEV=$(findmnt -no SOURCE / | sed 's/\[.*\]//')
+  echo "Root device: $ROOT_DEV"
+
+  sudo mkdir -p /mnt/topsetup
+  sudo mount -o subvolid=5 "$ROOT_DEV" /mnt/topsetup
+
+  CURRENT_DEFAULT_PATH=$(sudo btrfs subvolume get-default / | awk '{print $NF}')
+  NEW_ROOT_NAME="@active_root"
+
+  if [[ "$CURRENT_DEFAULT_PATH" == *".snapshots/"* ]]; then
+    echo "Current root is inside a snapshot path. Separating it."
+    SRC_PATH="/mnt/topsetup/${CURRENT_DEFAULT_PATH#<FS_TREE>/}"
+
+    if [ ! -d "/mnt/topsetup/${NEW_ROOT_NAME}" ]; then
+      sudo btrfs subvolume snapshot "$SRC_PATH" "/mnt/topsetup/${NEW_ROOT_NAME}"
+    else
+      echo "${NEW_ROOT_NAME} already exists, skipping creation"
+    fi
+
+    NEW_ID=$(sudo btrfs subvolume list /mnt/topsetup | grep "path ${NEW_ROOT_NAME}$" | awk '{print $2}')
+    sudo btrfs subvolume set-default "$NEW_ID" /mnt/topsetup
+    echo "Default subvolume set to ${NEW_ROOT_NAME} (ID ${NEW_ID})."
+    ROOT_SEPARATED=1
+  else
+    echo "Already an independent subvolume structure. No change."
+    ROOT_SEPARATED=0
+  fi
+
+  sudo umount /mnt/topsetup
+
+  # --- 8b. fstab mount option tuning ---
   FSTAB_PATH="/etc/fstab"
-  BACKUP_PATH="/etc/fstab.bak"
-  sudo cp "$FSTAB_PATH" "$BACKUP_PATH"
-  echo "Backup created at $BACKUP_PATH"
+  FSTAB_BACKUP="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
+  sudo cp "$FSTAB_PATH" "$FSTAB_BACKUP"
+  echo "fstab backup created at $FSTAB_BACKUP"
 
   TEMP_FSTAB=$(mktemp)
   while IFS= read -r line || [ -n "$line" ]; do
     if [[ ! "$line" =~ ^[[:space:]]*# ]] && echo "$line" | awk '{print $3}' | grep -q "^btrfs$"; then
       current_options=$(echo "$line" | awk '{print $4}')
       new_options="$current_options"
+
       if [[ ! "$new_options" =~ "noatime" ]]; then
         new_options="${new_options},noatime"
       fi
-      if [[ ! "$new_options" =~ "compress=zstd" ]]; then
+
+      # Replace existing compress= option instead of appending, to avoid conflicts (e.g. lzo + zstd)
+      if [[ "$new_options" =~ compress=[a-z0-9:]+ ]]; then
+        new_options=$(echo "$new_options" | sed -E 's/compress=[a-z0-9:]+/compress=zstd/')
+      else
         new_options="${new_options},compress=zstd"
       fi
 
@@ -258,22 +325,54 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
     fi
   done <"$FSTAB_PATH"
 
-  # Add .snapshots mount entry if not already present
-  ROOT_DEV=$(findmnt -no SOURCE / | sed 's/\[.*\]//')
-  if ! grep -qE '\s+/\.snapshots\s' "$TEMP_FSTAB"; then
-    echo -e "${ROOT_DEV} /.snapshots btrfs subvol=/.snapshots,defaults 0 0" >>"$TEMP_FSTAB"
-  fi
-
   sudo mv "$TEMP_FSTAB" "$FSTAB_PATH"
   sudo chmod 644 "$FSTAB_PATH"
+
   echo "Reloading systemd manager configuration..."
   sudo systemctl daemon-reload
+
   echo "Applying new mount options..."
-  sudo mount -a
+  if ! sudo mount -a; then
+    echo "mount -a failed! Restoring fstab from backup."
+    sudo cp "$FSTAB_BACKUP" "$FSTAB_PATH"
+    sudo systemctl daemon-reload
+    exit 1
+  fi
+
   echo "--- Current Btrfs Mount Status ---"
   mount | grep btrfs || true
 
-  # --- 8b. Snapper setup ---
+  # --- 8c. Install grub-btrfs (not available in Ubuntu's apt repos —
+  # must be built from source) and configure Snapper ---
+  echo "Installing grub-btrfs (from source; not packaged for Ubuntu)..."
+
+  if command -v grub-btrfsd >/dev/null && [ -f /etc/systemd/system/grub-btrfsd.service ]; then
+    echo "grub-btrfs already installed. Skipping build."
+  else
+    GRUB_BTRFS_SRC="/tmp/grub-btrfs"
+    rm -rf "$GRUB_BTRFS_SRC"
+    git clone https://github.com/Antynea/grub-btrfs.git "$GRUB_BTRFS_SRC"
+    (cd "$GRUB_BTRFS_SRC" && sudo make install)
+  fi
+
+  # GRUB_BTRFS_LIMIT defaults to 50, which is too low once snapper has
+  # accumulated more snapshots than that (newest ones silently get cut
+  # from the grub menu / grub.cfg detection). Raise it well above the
+  # snapper retention totals configured below.
+  # NOTE: GRUB_BTRFS_LIMIT="0" does NOT mean unlimited — the underlying
+  # script breaks out of its loop as soon as the counter hits <= 0, so
+  # 0 means "show nothing". Use a large positive number instead.
+  GRUB_BTRFS_CONFIG="/etc/default/grub-btrfs/config"
+  if [ -f "$GRUB_BTRFS_CONFIG" ]; then
+    if sudo grep -q "^GRUB_BTRFS_LIMIT=" "$GRUB_BTRFS_CONFIG"; then
+      sudo sed -i 's/^GRUB_BTRFS_LIMIT=.*/GRUB_BTRFS_LIMIT="300"/' "$GRUB_BTRFS_CONFIG"
+    elif sudo grep -q "^#GRUB_BTRFS_LIMIT=" "$GRUB_BTRFS_CONFIG"; then
+      sudo sed -i 's/^#GRUB_BTRFS_LIMIT=.*/GRUB_BTRFS_LIMIT="300"/' "$GRUB_BTRFS_CONFIG"
+    else
+      echo 'GRUB_BTRFS_LIMIT="300"' | sudo tee -a "$GRUB_BTRFS_CONFIG" >/dev/null
+    fi
+  fi
+
   CONFIG_NAME="root"
   CONFIG_PATH="/etc/snapper/configs/$CONFIG_NAME"
 
@@ -284,20 +383,45 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
     echo "Snapper configuration for root already exists. Skipping creation."
   fi
 
-  echo "Optimizing snapshot retention limits..."
-  sudo sed -i 's/^TIMELINE_CREATE=.*/TIMELINE_CREATE="yes"/' "$CONFIG_PATH"
-  sudo sed -i 's/^TIMELINE_LIMIT_HOURLY=.*/TIMELINE_LIMIT_HOURLY="6"/' "$CONFIG_PATH"
-  sudo sed -i 's/^TIMELINE_LIMIT_DAILY=.*/TIMELINE_LIMIT_DAILY="7"/' "$CONFIG_PATH"
-  sudo sed -i 's/^TIMELINE_LIMIT_WEEKLY=.*/TIMELINE_LIMIT_WEEKLY="4"/' "$CONFIG_PATH"
-  sudo sed -i 's/^TIMELINE_LIMIT_MONTHLY=.*/TIMELINE_LIMIT_MONTHLY="0"/' "$CONFIG_PATH"
-  sudo sed -i 's/^TIMELINE_LIMIT_YEARLY=.*/TIMELINE_LIMIT_YEARLY="0"/' "$CONFIG_PATH"
+  CONFIG_BACKUP="${CONFIG_PATH}.bak.$(date +%Y%m%d%H%M%S)"
+  sudo cp "$CONFIG_PATH" "$CONFIG_BACKUP"
+  echo "Snapper config backed up to $CONFIG_BACKUP"
 
+  set_config_value() {
+    local key="$1"
+    local value="$2"
+    if sudo grep -q "^${key}=" "$CONFIG_PATH"; then
+      sudo sed -i "s/^${key}=.*/${key}=\"${value}\"/" "$CONFIG_PATH"
+    else
+      echo "${key}=\"${value}\"" | sudo tee -a "$CONFIG_PATH" >/dev/null
+    fi
+  }
+
+  echo "Configuring timeline snapshot retention..."
+  set_config_value "TIMELINE_CREATE" "yes"
+  set_config_value "TIMELINE_LIMIT_HOURLY" "6"
+  set_config_value "TIMELINE_LIMIT_DAILY" "7"
+  set_config_value "TIMELINE_LIMIT_WEEKLY" "4"
+  set_config_value "TIMELINE_LIMIT_MONTHLY" "0"
+  set_config_value "TIMELINE_LIMIT_YEARLY" "0"
+
+  # Number-based cleanup for non-timeline snapshots (apt pre/post, boot snapshots).
+  # Without this, pre/post/single-type snapshots accumulate forever and fill the disk.
+  echo "Configuring number-based cleanup for apt/boot snapshots..."
+  set_config_value "NUMBER_CLEANUP" "yes"
+  set_config_value "NUMBER_LIMIT" "50"
+  set_config_value "NUMBER_LIMIT_IMPORTANT" "10"
+
+  # APT hook: uses a state file to pass the pre-snapshot number reliably,
+  # instead of re-parsing `snapper list` output by description (fragile,
+  # locale/format dependent, and unsafe under concurrent apt operations).
   HOOK_PATH="/etc/apt/apt.conf.d/80snapper"
+  STATE_FILE="/run/snapper-apt-pre-number"
   echo "Creating APT hook for Snapper at $HOOK_PATH..."
-  sudo tee "$HOOK_PATH" >/dev/null <<'INNEREOF'
-DPkg::Pre-Invoke {"[ -x /usr/bin/snapper ] && snapper -c root create -d 'APT Pre-Invoke' -t pre || true";};
-DPkg::Post-Invoke {"[ -x /usr/bin/snapper ] && snapper -c root create -d 'APT Post-Invoke' -t post --pre-number=$(snapper -c root list | awk '/APT Pre-Invoke/ {print $1}' | tail -n 1) || true";};
-INNEREOF
+  sudo tee "$HOOK_PATH" >/dev/null <<EOF
+DPkg::Pre-Invoke {"[ -x /usr/bin/snapper ] && /usr/bin/snapper -c root create --print-number -t pre -d 'APT Pre-Invoke' > ${STATE_FILE} 2>/dev/null || true";};
+DPkg::Post-Invoke {"[ -x /usr/bin/snapper ] && [ -f ${STATE_FILE} ] && /usr/bin/snapper -c root create -d 'APT Post-Invoke' -t post --pre-number=\$(cat ${STATE_FILE}) || true";};
+EOF
   sudo chmod 644 "$HOOK_PATH"
 
   SERVICE_PATH="/etc/systemd/system/snapper-boot.service"
@@ -317,17 +441,39 @@ WantedBy=default.target
 INNEREOF
   sudo chmod 644 "$SERVICE_PATH"
 
-  echo "Enabling and starting systemd services and timers for snapper..."
+  echo "Enabling services, timers, and grub-btrfs daemon..."
   sudo systemctl daemon-reload
   sudo systemctl enable snapper-boot.service
   sudo systemctl enable --now snapper-timeline.timer
   sudo systemctl enable --now snapper-cleanup.timer
 
+  if systemctl list-unit-files | grep -q grub-btrfsd.service; then
+    sudo systemctl enable --now grub-btrfsd.service
+  else
+    echo -e "${YELLOW}Warning: grub-btrfsd.service not found. Check grub-btrfs installation.${NC}"
+  fi
+
   echo "Creating initial verification snapshot..."
   sudo snapper -c "$CONFIG_NAME" create -d "Initial automated setup"
 
+  # Single final grub regeneration, after root separation + snapper + grub-btrfs are all in place.
+  if command -v update-grub >/dev/null; then
+    echo "Regenerating grub config..."
+    sudo update-grub
+  fi
+
   echo "--- Current Snapper Snapshots ---"
   sudo snapper -c "$CONFIG_NAME" list
+
+  echo "--- Snapper config ($CONFIG_PATH) ---"
+  sudo grep -E '^(TIMELINE|NUMBER)_' "$CONFIG_PATH"
+
+  if [ "$ROOT_SEPARATED" -eq 1 ]; then
+    echo ""
+    echo -e "${YELLOW}Root subvolume was separated. After reboot, verify with:${NC}"
+    echo "  cat /proc/cmdline"
+    echo "  sudo btrfs subvolume get-default /"
+  fi
 else
   echo -e "${YELLOW}Root filesystem is ${ROOT_FSTYPE}, not btrfs — skipping btrfs tuning and snapper setup.${NC}"
 fi
