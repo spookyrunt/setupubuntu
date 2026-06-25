@@ -8,10 +8,6 @@ fi
 
 #################################################
 # PART 1: Separate root subvolume from snapshot tree
-# This must run BEFORE snapper starts taking automated
-# snapshots, so the root we end up on is a clean,
-# independent subvolume rather than something nested
-# under .snapshots.
 #################################################
 
 FSTAB_PATH="/etc/fstab"
@@ -27,7 +23,7 @@ mkdir -p /mnt/topsetup
 mount -o subvolid=5 "$ROOT_DEV" /mnt/topsetup
 
 CURRENT_DEFAULT_PATH=$(btrfs subvolume get-default / | awk '{print $NF}')
-NEW_ROOT_NAME="@active_root"
+NEW_ROOT_NAME="@"
 
 if [[ "$CURRENT_DEFAULT_PATH" == *".snapshots/"* ]]; then
   echo "Current root is inside a snapshot path. Separating it."
@@ -61,17 +57,17 @@ while IFS= read -r line || [ -n "$line" ]; do
     current_options=$(echo "$line" | awk '{print $4}')
     new_options="$current_options"
 
-    if [[ ! "$new_options" =~ "noatime" ]]; then
-      new_options="${new_options},noatime"
+    if [[ "$new_options" != *noatime* ]]; then
+      new_options="${new_options:+$new_options,}noatime"
     fi
 
-    if [[ "$new_options" =~ compress=[a-z0-9:]+ ]]; then
+    if [[ "$new_options" == *compress=* ]]; then
       new_options=$(echo "$new_options" | sed -E 's/compress=[a-z0-9:]+/compress=zstd/')
     else
-      new_options="${new_options},compress=zstd"
+      new_options="${new_options:+$new_options,}compress=zstd"
     fi
 
-    updated_line=$(echo "$line" | awk -v new="$new_options" 'BEGIN{OFS="\t"} {$4=new; print}')
+    updated_line="${line/"$current_options"/"$new_options"}"
     echo "$updated_line" >>"$TEMP_FSTAB"
   else
     echo "$line" >>"$TEMP_FSTAB"
@@ -96,52 +92,12 @@ echo "--- Current Btrfs Mount Status ---"
 mount | grep btrfs
 
 #################################################
-# PART 3: Install and configure snapper + grub-btrfs
-# Runs AFTER root separation, so automated snapshots
-# accumulate on the clean root, not the old snapshot tree.
+# PART 3: Install and configure snapper
 #################################################
 
-echo "Installing snapper and build dependencies..."
+echo "Installing snapper..."
 apt update
-apt install -y snapper git make inotify-tools gawk
-
-# Ubuntu's default /usr/bin/awk is mawk, which does not support the \s
-# regex class. grub-btrfs's snapshot-detection script relies on \s when
-# parsing `btrfs subvolume show` output to find the root subvolume UUID,
-# so under mawk it silently fails with "UUID of the root subvolume is
-# not available". Switch the system default to gawk to avoid this.
-update-alternatives --set awk /usr/bin/gawk
-
-# grub-btrfs is NOT available in Ubuntu/Debian's apt repositories
-# (confirmed: only packaged for Arch/Gentoo). It must be built from
-# source. Skip the build if it's already installed.
-if command -v grub-btrfsd >/dev/null && [ -f /etc/systemd/system/grub-btrfsd.service ]; then
-  echo "grub-btrfs already installed. Skipping build."
-else
-  echo "Installing grub-btrfs from source (not packaged for Ubuntu)..."
-  GRUB_BTRFS_SRC="/tmp/grub-btrfs"
-  rm -rf "$GRUB_BTRFS_SRC"
-  git clone https://github.com/Antynea/grub-btrfs.git "$GRUB_BTRFS_SRC"
-  (cd "$GRUB_BTRFS_SRC" && make install)
-fi
-
-# GRUB_BTRFS_LIMIT defaults to 50, which is too low once snapper has
-# accumulated more snapshots than that (newest ones silently get cut
-# from grub.cfg detection). Raise it well above the snapper retention
-# totals configured below.
-# NOTE: GRUB_BTRFS_LIMIT="0" does NOT mean unlimited — the underlying
-# script breaks out of its loop as soon as the counter hits <= 0, so
-# 0 means "show nothing". Use a large positive number instead.
-GRUB_BTRFS_CONFIG="/etc/default/grub-btrfs/config"
-if [ -f "$GRUB_BTRFS_CONFIG" ]; then
-  if grep -q "^GRUB_BTRFS_LIMIT=" "$GRUB_BTRFS_CONFIG"; then
-    sed -i 's/^GRUB_BTRFS_LIMIT=.*/GRUB_BTRFS_LIMIT="300"/' "$GRUB_BTRFS_CONFIG"
-  elif grep -q "^#GRUB_BTRFS_LIMIT=" "$GRUB_BTRFS_CONFIG"; then
-    sed -i 's/^#GRUB_BTRFS_LIMIT=.*/GRUB_BTRFS_LIMIT="300"/' "$GRUB_BTRFS_CONFIG"
-  else
-    echo 'GRUB_BTRFS_LIMIT="300"' >>"$GRUB_BTRFS_CONFIG"
-  fi
-fi
+apt install -y snapper
 
 CONFIG_NAME="root"
 CONFIG_PATH="/etc/snapper/configs/$CONFIG_NAME"
@@ -212,27 +168,11 @@ systemctl enable snapper-boot.service
 systemctl enable --now snapper-timeline.timer
 systemctl enable --now snapper-cleanup.timer
 
-if systemctl list-unit-files | grep -q grub-btrfsd.service; then
-  systemctl enable --now grub-btrfsd.service
-else
-  echo "Warning: grub-btrfsd.service not found. Check grub-btrfs installation."
-fi
-
 echo "Creating initial verification snapshot..."
 snapper -c "$CONFIG_NAME" create -d "Initial automated setup"
 
 #################################################
-# PART 4: Single final grub regeneration
-# (Only done once here, not separately in each part.)
-#################################################
-
-if command -v update-grub >/dev/null; then
-  echo "Regenerating grub config..."
-  update-grub
-fi
-
-#################################################
-# PART 5: Final verification
+# PART 4: Final verification
 #################################################
 
 echo "--- Current Snapper Snapshots ---"
@@ -243,9 +183,8 @@ grep -E '^(TIMELINE|NUMBER)_' "$CONFIG_PATH"
 
 if [ "$ROOT_SEPARATED" -eq 1 ]; then
   echo ""
-  echo "Root subvolume was separated. After reboot, verify with:"
-  echo "  cat /proc/cmdline"
-  echo "  sudo btrfs subvolume get-default /"
+  echo "Root subvolume was separated. Reboot now to apply independent structures."
+  echo "After reboot, verify with: cat /proc/cmdline and sudo btrfs subvolume get-default /"
 fi
 
-echo "Setup complete: root separation, fstab normalization, snapper, and grub-btrfs auto-sync are all active."
+echo "Setup complete: clean root separation layout established without grub overrides."

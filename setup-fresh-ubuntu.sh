@@ -12,7 +12,7 @@ echo -e "${YELLOW}Fresh Ubuntu Setup: Hangul, Nerd Font, GNOME, evsieve, Neovim,
 echo -e "${CYAN}==================================================${NC}"
 
 # --- 1. System update + all packages, once (Snapper integrated) ---
-# Runs first so curl, git, inotify-tools, etc. are available for
+# Runs first so curl, git, etc. are available for
 # everything below, before any interactive prompts.
 echo -e "\n${CYAN}[1/8] Updating system and installing packages...${NC}"
 sudo apt update -y
@@ -22,18 +22,11 @@ sudo apt install -y \
   cargo libevdev-dev \
   gnome-shell-extension-manager gnome-tweaks \
   curl git ripgrep fd-find fzf sd python3 python3-pip nodejs npm \
-  snapper snapper-gui inotify-tools make gawk
+  snapper snapper-gui make
 
 if ! command -v fd &>/dev/null; then
   sudo ln -sf "$(which fdfind)" /usr/local/bin/fd
 fi
-
-# Ubuntu's default /usr/bin/awk is mawk, which does not support the \s
-# regex class. grub-btrfs's snapshot-detection script relies on \s when
-# parsing `btrfs subvolume show` output to find the root subvolume UUID,
-# so under mawk it silently fails with "UUID of the root subvolume is
-# not available". Switch the system default to gawk to avoid this.
-sudo update-alternatives --set awk /usr/bin/gawk
 
 ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
 echo "Detected root filesystem type: ${ROOT_FSTYPE}"
@@ -256,7 +249,7 @@ echo "Git Credential Manager configured with secretservice"
 
 git config --global core.editor "nvim"
 
-# --- 8. Btrfs root separation + fstab tuning + Snapper + grub-btrfs ---
+# --- 8. Btrfs root separation + fstab tuning + Snapper ---
 echo -e "\n${CYAN}[8/8] Checking filesystem and configuring Btrfs/Snapper...${NC}"
 if [ "$ROOT_FSTYPE" = "btrfs" ]; then
   echo -e "${GREEN}Root filesystem is btrfs — separating root, tuning fstab, and configuring snapper.${NC}"
@@ -302,23 +295,23 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
   echo "fstab backup created at $FSTAB_BACKUP"
 
   TEMP_FSTAB=$(mktemp)
+
   while IFS= read -r line || [ -n "$line" ]; do
     if [[ ! "$line" =~ ^[[:space:]]*# ]] && echo "$line" | awk '{print $3}' | grep -q "^btrfs$"; then
       current_options=$(echo "$line" | awk '{print $4}')
       new_options="$current_options"
 
-      if [[ ! "$new_options" =~ "noatime" ]]; then
-        new_options="${new_options},noatime"
+      if [[ "$new_options" != *noatime* ]]; then
+        new_options="${new_options:+$new_options,}noatime"
       fi
 
-      # Replace existing compress= option instead of appending, to avoid conflicts (e.g. lzo + zstd)
-      if [[ "$new_options" =~ compress=[a-z0-9:]+ ]]; then
+      if [[ "$new_options" == *compress=* ]]; then
         new_options=$(echo "$new_options" | sed -E 's/compress=[a-z0-9:]+/compress=zstd/')
       else
-        new_options="${new_options},compress=zstd"
+        new_options="${new_options:+$new_options,}compress=zstd"
       fi
 
-      updated_line=$(echo "$line" | awk -v new="$new_options" 'BEGIN{OFS="\t"} {$4=new; print}')
+      updated_line="${line/"$current_options"/"$new_options"}"
       echo "$updated_line" >>"$TEMP_FSTAB"
     else
       echo "$line" >>"$TEMP_FSTAB"
@@ -341,37 +334,6 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
 
   echo "--- Current Btrfs Mount Status ---"
   mount | grep btrfs || true
-
-  # --- 8c. Install grub-btrfs (not available in Ubuntu's apt repos —
-  # must be built from source) and configure Snapper ---
-  echo "Installing grub-btrfs (from source; not packaged for Ubuntu)..."
-
-  if command -v grub-btrfsd >/dev/null && [ -f /etc/systemd/system/grub-btrfsd.service ]; then
-    echo "grub-btrfs already installed. Skipping build."
-  else
-    GRUB_BTRFS_SRC="/tmp/grub-btrfs"
-    rm -rf "$GRUB_BTRFS_SRC"
-    git clone https://github.com/Antynea/grub-btrfs.git "$GRUB_BTRFS_SRC"
-    (cd "$GRUB_BTRFS_SRC" && sudo make install)
-  fi
-
-  # GRUB_BTRFS_LIMIT defaults to 50, which is too low once snapper has
-  # accumulated more snapshots than that (newest ones silently get cut
-  # from the grub menu / grub.cfg detection). Raise it well above the
-  # snapper retention totals configured below.
-  # NOTE: GRUB_BTRFS_LIMIT="0" does NOT mean unlimited — the underlying
-  # script breaks out of its loop as soon as the counter hits <= 0, so
-  # 0 means "show nothing". Use a large positive number instead.
-  GRUB_BTRFS_CONFIG="/etc/default/grub-btrfs/config"
-  if [ -f "$GRUB_BTRFS_CONFIG" ]; then
-    if sudo grep -q "^GRUB_BTRFS_LIMIT=" "$GRUB_BTRFS_CONFIG"; then
-      sudo sed -i 's/^GRUB_BTRFS_LIMIT=.*/GRUB_BTRFS_LIMIT="300"/' "$GRUB_BTRFS_CONFIG"
-    elif sudo grep -q "^#GRUB_BTRFS_LIMIT=" "$GRUB_BTRFS_CONFIG"; then
-      sudo sed -i 's/^#GRUB_BTRFS_LIMIT=.*/GRUB_BTRFS_LIMIT="300"/' "$GRUB_BTRFS_CONFIG"
-    else
-      echo 'GRUB_BTRFS_LIMIT="300"' | sudo tee -a "$GRUB_BTRFS_CONFIG" >/dev/null
-    fi
-  fi
 
   CONFIG_NAME="root"
   CONFIG_PATH="/etc/snapper/configs/$CONFIG_NAME"
@@ -405,16 +367,11 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
   set_config_value "TIMELINE_LIMIT_MONTHLY" "0"
   set_config_value "TIMELINE_LIMIT_YEARLY" "0"
 
-  # Number-based cleanup for non-timeline snapshots (apt pre/post, boot snapshots).
-  # Without this, pre/post/single-type snapshots accumulate forever and fill the disk.
   echo "Configuring number-based cleanup for apt/boot snapshots..."
   set_config_value "NUMBER_CLEANUP" "yes"
   set_config_value "NUMBER_LIMIT" "50"
   set_config_value "NUMBER_LIMIT_IMPORTANT" "10"
 
-  # APT hook: uses a state file to pass the pre-snapshot number reliably,
-  # instead of re-parsing `snapper list` output by description (fragile,
-  # locale/format dependent, and unsafe under concurrent apt operations).
   HOOK_PATH="/etc/apt/apt.conf.d/80snapper"
   STATE_FILE="/run/snapper-apt-pre-number"
   echo "Creating APT hook for Snapper at $HOOK_PATH..."
@@ -441,26 +398,14 @@ WantedBy=default.target
 INNEREOF
   sudo chmod 644 "$SERVICE_PATH"
 
-  echo "Enabling services, timers, and grub-btrfs daemon..."
+  echo "Enabling services and timers..."
   sudo systemctl daemon-reload
   sudo systemctl enable snapper-boot.service
   sudo systemctl enable --now snapper-timeline.timer
   sudo systemctl enable --now snapper-cleanup.timer
 
-  if systemctl list-unit-files | grep -q grub-btrfsd.service; then
-    sudo systemctl enable --now grub-btrfsd.service
-  else
-    echo -e "${YELLOW}Warning: grub-btrfsd.service not found. Check grub-btrfs installation.${NC}"
-  fi
-
   echo "Creating initial verification snapshot..."
   sudo snapper -c "$CONFIG_NAME" create -d "Initial automated setup"
-
-  # Single final grub regeneration, after root separation + snapper + grub-btrfs are all in place.
-  if command -v update-grub >/dev/null; then
-    echo "Regenerating grub config..."
-    sudo update-grub
-  fi
 
   echo "--- Current Snapper Snapshots ---"
   sudo snapper -c "$CONFIG_NAME" list
