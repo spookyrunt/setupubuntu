@@ -29,11 +29,11 @@ if [[ "$CURRENT_DEFAULT_PATH" == *".snapshots/"* ]]; then
   echo "Current root is inside a snapshot path. Separating it."
   SRC_PATH="/mnt/topsetup/${CURRENT_DEFAULT_PATH#<FS_TREE>/}"
 
-  if [ ! -d "/mnt/topsetup/${NEW_ROOT_NAME}" ]; then
-    btrfs subvolume snapshot "$SRC_PATH" "/mnt/topsetup/${NEW_ROOT_NAME}"
-  else
-    echo "${NEW_ROOT_NAME} already exists, skipping creation"
+  if [ -d "/mnt/topsetup/${NEW_ROOT_NAME}" ]; then
+    echo "${NEW_ROOT_NAME} already exists but is stale after a rollback. Replacing it."
+    btrfs subvolume delete "/mnt/topsetup/${NEW_ROOT_NAME}"
   fi
+  btrfs subvolume snapshot "$SRC_PATH" "/mnt/topsetup/${NEW_ROOT_NAME}"
 
   NEW_ID=$(btrfs subvolume list /mnt/topsetup | grep "path ${NEW_ROOT_NAME}$" | awk '{print $2}')
   btrfs subvolume set-default "$NEW_ID" /mnt/topsetup
@@ -73,6 +73,10 @@ while IFS= read -r line || [ -n "$line" ]; do
     echo "$line" >>"$TEMP_FSTAB"
   fi
 done <"$FSTAB_PATH"
+
+if ! grep -qE '\s+/\.snapshots\s' "$TEMP_FSTAB"; then
+  echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$TEMP_FSTAB"
+fi
 
 mv "$TEMP_FSTAB" "$FSTAB_PATH"
 chmod 644 "$FSTAB_PATH"

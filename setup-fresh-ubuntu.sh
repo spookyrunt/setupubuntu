@@ -265,18 +265,22 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
   sudo mount -o subvolid=5 "$ROOT_DEV" /mnt/topsetup
 
   CURRENT_DEFAULT_PATH=$(sudo btrfs subvolume get-default / | awk '{print $NF}')
-  NEW_ROOT_NAME="@active_root"
+  NEW_ROOT_NAME="@"
 
   if [[ "$CURRENT_DEFAULT_PATH" == *".snapshots/"* ]]; then
     echo "Current root is inside a snapshot path. Separating it."
     SRC_PATH="/mnt/topsetup/${CURRENT_DEFAULT_PATH#<FS_TREE>/}"
 
-    if [ ! -d "/mnt/topsetup/${NEW_ROOT_NAME}" ]; then
-      sudo btrfs subvolume snapshot "$SRC_PATH" "/mnt/topsetup/${NEW_ROOT_NAME}"
-    else
-      echo "${NEW_ROOT_NAME} already exists, skipping creation"
+    # If @ already exists from a previous run, it's stale after a rollback
+    # (it doesn't reflect this rollback's content) and is not currently
+    # mounted as root (the active root is under .snapshots/, per the
+    # condition above), so it's safe to delete and recreate fresh.
+    if [ -d "/mnt/topsetup/${NEW_ROOT_NAME}" ]; then
+      echo "${NEW_ROOT_NAME} already exists but is stale after a rollback. Replacing it."
+      sudo btrfs subvolume delete "/mnt/topsetup/${NEW_ROOT_NAME}"
     fi
 
+    sudo btrfs subvolume snapshot "$SRC_PATH" "/mnt/topsetup/${NEW_ROOT_NAME}"
     NEW_ID=$(sudo btrfs subvolume list /mnt/topsetup | grep "path ${NEW_ROOT_NAME}$" | awk '{print $2}')
     sudo btrfs subvolume set-default "$NEW_ID" /mnt/topsetup
     echo "Default subvolume set to ${NEW_ROOT_NAME} (ID ${NEW_ID})."
@@ -317,6 +321,10 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
       echo "$line" >>"$TEMP_FSTAB"
     fi
   done <"$FSTAB_PATH"
+
+  if ! grep -qE '\s+/\.snapshots\s' "$TEMP_FSTAB"; then
+    echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$TEMP_FSTAB"
+  fi
 
   sudo mv "$TEMP_FSTAB" "$FSTAB_PATH"
   sudo chmod 644 "$FSTAB_PATH"
