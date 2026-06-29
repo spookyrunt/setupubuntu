@@ -21,8 +21,8 @@ sudo apt install -y \
   ibus-hangul language-pack-ko \
   cargo libevdev-dev \
   gnome-shell-extension-manager gnome-tweaks \
-  curl git ripgrep fd-find fzf sd python3 python3-pip nodejs npm \
-  snapper snapper-gui make
+  curl git ripgrep fd-find fzf sd python3 python3-pip nodejs npm make \
+  snapper btrfs-assistant # btrfs-progs btrfs-heatmap btrfs-compsize
 
 if ! command -v fd &>/dev/null; then
   sudo ln -sf "$(which fdfind)" /usr/local/bin/fd
