@@ -57,7 +57,13 @@ else
   echo -e "${YELLOW}Skipped dock-position: dash-to-dock extension not found/enabled.${NC}"
 fi
 
-# --- 5. evsieve scroll inversion ---
+# --- 5. Purge Apport ---
+sudo sed -i 's/enabled=1/enabled=0/' /etc/default/apport
+sudo apt purge apport*
+sudo apt autoremove --purge -y
+sudo rm -rf /var/crash/*
+
+# --- 6. evsieve scroll inversion ---
 echo -e "\n${CYAN}[5/8] Building and installing evsieve...${NC}"
 
 FALLBACK_EVSIEVE_VERSION="1.4.0"
@@ -166,7 +172,7 @@ EOF
   sudo systemctl enable --now scroll-invert
 fi
 
-# --- 6. Neovim + LazyVim ---
+# --- 7. Neovim + LazyVim ---
 echo -e "\n${CYAN}[6/8] Installing Neovim and LazyVim...${NC}"
 NVIM_URL=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest |
   grep "browser_download_url.*nvim-linux-x86_64.tar.gz\"" |
@@ -227,7 +233,7 @@ return {
 }
 EOF
 
-# --- 7. Git Credential Manager (GCM) ---
+# --- 8. Git Credential Manager (GCM) ---
 echo -e "\n${CYAN}[7/8] Installing and configuring Git Credential Manager...${NC}"
 GCM_DEB_URL=$(curl -s https://api.github.com/repos/git-ecosystem/git-credential-manager/releases/latest |
   grep "browser_download_url.*linux-x64.*\.deb\"" |
@@ -249,12 +255,12 @@ echo "Git Credential Manager configured with secretservice"
 
 git config --global core.editor "nvim"
 
-# --- 8. Btrfs root separation + fstab tuning + Snapper ---
+# --- 9. Btrfs root separation + fstab tuning + Snapper ---
 echo -e "\n${CYAN}[8/8] Checking filesystem and configuring Btrfs/Snapper...${NC}"
 if [ "$ROOT_FSTYPE" = "btrfs" ]; then
   echo -e "${GREEN}Root filesystem is btrfs — separating root, tuning fstab, and configuring snapper.${NC}"
 
-  # --- 8a. Separate root subvolume from snapshot tree ---
+  # --- 9a. Separate root subvolume from snapshot tree ---
   # Must run BEFORE snapper starts taking automated snapshots, so the
   # root we end up on is a clean, independent subvolume rather than
   # something nested under .snapshots.
@@ -292,7 +298,7 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
 
   sudo umount /mnt/topsetup
 
-  # --- 8b. fstab mount option tuning ---
+  # --- 9b. fstab mount option tuning ---
   FSTAB_PATH="/etc/fstab"
   FSTAB_BACKUP="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
   sudo cp "$FSTAB_PATH" "$FSTAB_BACKUP"
