@@ -21,7 +21,7 @@ sudo apt install -y \
   ibus-hangul language-pack-ko \
   cargo libevdev-dev \
   gnome-shell-extension-manager gnome-tweaks \
-  curl git ripgrep fd-find fzf sd python3 python3-pip nodejs npm make \
+  curl git xclip xsel ripgrep fd-find fzf sd python3 python3-pip nodejs npm make \
   snapper btrfs-assistant # btrfs-progs btrfs-heatmap btrfs-compsize
 
 if ! command -v fd &>/dev/null; then
@@ -264,11 +264,13 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
   # Must run BEFORE snapper starts taking automated snapshots, so the
   # root we end up on is a clean, independent subvolume rather than
   # something nested under .snapshots.
-  ROOT_DEV=$(findmnt -no SOURCE / | sed 's/\[.*\]//')
+  ROOT_DEV=$(findmnt -no UUID /)
+  ROOT_DEV="/dev/disk/by-uuid/${ROOT_DEV}"
   echo "Root device: $ROOT_DEV"
 
   sudo mkdir -p /mnt/topsetup
   sudo mount -o subvolid=5 "$ROOT_DEV" /mnt/topsetup
+  trap 'umount /mnt/topsetup 2>/dev/null || true' EXIT
 
   CURRENT_DEFAULT_PATH=$(sudo btrfs subvolume get-default / | awk '{print $NF}')
   NEW_ROOT_NAME="@"
@@ -315,7 +317,9 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
         new_options="${new_options:+$new_options,}noatime"
       fi
 
-      if [[ "$new_options" == *compress=* ]]; then
+      if [[ "$new_options" == *compress-force=* ]]; then
+        new_options=$(echo "$new_options" | sed -E 's/compress-force=[a-z0-9:]+/compress-force=zstd/')
+      elif [[ "$new_options" == *compress=* ]]; then
         new_options=$(echo "$new_options" | sed -E 's/compress=[a-z0-9:]+/compress=zstd/')
       else
         new_options="${new_options:+$new_options,}compress=zstd"
