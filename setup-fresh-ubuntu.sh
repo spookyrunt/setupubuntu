@@ -21,7 +21,7 @@ sudo apt install -y \
   ibus-hangul language-pack-ko \
   cargo libevdev-dev \
   gnome-shell-extension-manager gnome-tweaks \
-  curl git xclip xsel ripgrep fd-find fzf sd python3 python3-pip nodejs npm make \
+  curl git xclip xsel wl-clipboard ripgrep fd-find fzf sd python3 python3-pip nodejs npm make \
   snapper btrfs-assistant # btrfs-progs btrfs-heatmap btrfs-compsize
 
 if ! command -v fd &>/dev/null; then

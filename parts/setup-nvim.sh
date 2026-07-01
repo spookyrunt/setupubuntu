@@ -7,7 +7,7 @@ echo "==> Updating apt..."
 sudo apt update && sudo apt upgrade -y
 
 echo "==> Installing dependencies..."
-sudo apt install -y git curl unzip xclip xsel ripgrep fd-find python3 python3-pip nodejs npm
+sudo apt install -y git curl unzip xclip xsel wl-clipboard ripgrep fd-find python3 python3-pip nodejs npm
 
 # fd-find installs as fdfind, LazyVim expects fd
 if ! command -v fd &>/dev/null; then
