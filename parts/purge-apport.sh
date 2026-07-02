@@ -1,4 +1,6 @@
 #!/bin/bash
-sudo apt purge apport*
-sudo apt autoremove -y
+set -euo pipefail
+
+sudo apt purge 'apport*'
+sudo apt autoremove --purge -y
 sudo rm -rf /var/crash/*

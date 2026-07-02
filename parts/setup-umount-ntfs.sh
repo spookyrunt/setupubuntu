@@ -1,4 +1,6 @@
 #!/bin/bash
+set -euo pipefail
+
 echo "Writing service..."
 sudo tee "/etc/systemd/system/umount-ntfs.service" >/dev/null <<'EOF'
 [Unit]

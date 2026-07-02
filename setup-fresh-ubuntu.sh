@@ -18,10 +18,13 @@ echo -e "\n${CYAN}[1/8] Updating system and installing packages...${NC}"
 sudo apt update -y
 sudo apt upgrade -y
 sudo apt install -y \
-  ibus-hangul language-pack-ko \
-  cargo libevdev-dev \
+  ibus-hangul language-pack-ko gedit \
   gnome-shell-extension-manager gnome-tweaks \
-  curl git xclip xsel wl-clipboard ripgrep fd-find fzf sd python3 python3-pip nodejs npm make \
+  cargo libevdev-dev \
+  xclip xsel wl-clipboard \
+  curl git unzip build-essential \
+  ripgrep fd-find fzf sd \
+  python3 python3-pip nodejs npm \
   snapper btrfs-assistant # btrfs-progs btrfs-heatmap btrfs-compsize
 
 if ! command -v fd &>/dev/null; then
@@ -57,9 +60,9 @@ else
   echo -e "${YELLOW}Skipped dock-position: dash-to-dock extension not found/enabled.${NC}"
 fi
 
-# --- 5. Purge Apport ---
+# --- 5. Purge Apport and GNOME Text Editor ---
 sudo sed -i 's/enabled=1/enabled=0/' /etc/default/apport
-sudo apt purge apport*
+sudo apt purge 'apport*' gnome-text-editor
 sudo apt autoremove --purge -y
 sudo rm -rf /var/crash/*
 
