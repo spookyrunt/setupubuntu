@@ -42,11 +42,15 @@ gsettings set org.gnome.desktop.input-sources sources "[('ibus', 'hangul')]"
 # --- 3. Nerd Font ---
 echo -e "\n${CYAN}[3/8] Installing JetBrainsMono Nerd Font...${NC}"
 FONT_DIR="$HOME/.local/share/fonts"
-mkdir -p "$FONT_DIR"
-curl -fLo "$FONT_DIR/JetBrainsMono.zip" https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
-unzip -o "$FONT_DIR/JetBrainsMono.zip" -d "$FONT_DIR"
-rm "$FONT_DIR/JetBrainsMono.zip"
-fc-cache -f "$FONT_DIR"
+if [ -f "$FONT_DIR/JetBrainsMonoNerdFont-Regular.ttf" ]; then
+  echo "JetBrainsMono Nerd Font is already installed. Skipping..."
+else
+  mkdir -p "$FONT_DIR"
+  curl -fLo "$FONT_DIR/JetBrainsMono.zip" https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
+  unzip -o "$FONT_DIR/JetBrainsMono.zip" -d "$FONT_DIR"
+  rm "$FONT_DIR/JetBrainsMono.zip"
+  fc-cache -f "$FONT_DIR"
+fi
 
 # --- 4. GNOME settings ---
 echo -e "\n${CYAN}[4/8] Applying GNOME settings...${NC}"
@@ -61,7 +65,7 @@ else
 fi
 
 # --- 5. Purge Apport and GNOME Text Editor ---
-sudo sed -i 's/enabled=1/enabled=0/' /etc/default/apport
+[ -f "/etc/default/apport" ] && sudo sed -i 's/enabled=1/enabled=0/' /etc/default/apport
 sudo apt purge 'apport*' gnome-text-editor
 sudo apt autoremove --purge -y
 sudo rm -rf /var/crash/*
@@ -69,80 +73,87 @@ sudo rm -rf /var/crash/*
 # --- 6. evsieve scroll inversion ---
 echo -e "\n${CYAN}[5/8] Building and installing evsieve...${NC}"
 
-FALLBACK_EVSIEVE_VERSION="1.4.0"
-DEFAULT_MOUSE_DEVICE="/dev/input/by-id/usb-HL_0000_00_00_00-01_USB_Device-if01-event-mouse"
+for _ in 1; do
+  read -rp "Which evsieve version do you want to build? [default: latest, 's' or 'skip' to skip]: " VERSION_INPUT
+  VERSION_INPUT="${VERSION_INPUT:-latest}"
 
-read -rp "Which evsieve version do you want to build? [default: latest]: " VERSION_INPUT
-VERSION_INPUT="${VERSION_INPUT:-latest}"
+  if [ "$VERSION_INPUT" = "s" ] || [ "$VERSION_INPUT" = "skip" ]; then
+    echo -e "${YELLOW}Skipping evsieve/scroll-invert setup as requested by user.${NC}"
+    break
+  fi
 
-if [ "$VERSION_INPUT" = "latest" ]; then
-  echo "Looking up the latest evsieve release..."
   LATEST_TAG=$(curl -s https://api.github.com/repos/KarsMulder/evsieve/releases/latest |
     grep '"tag_name":' |
     sed -E 's/.*"tag_name": *"v?([^"]+)".*/\1/' || true)
-  if [ -n "$LATEST_TAG" ]; then
+
+  if [ "$VERSION_INPUT" != "latest" ]; then
+    EVSIEVE_VERSION="$VERSION_INPUT"
+  elif [ -n "$LATEST_TAG" ]; then
     EVSIEVE_VERSION="$LATEST_TAG"
   else
+    FALLBACK_EVSIEVE_VERSION="1.4.0"
     echo "Could not reach GitHub. Falling back to: ${FALLBACK_EVSIEVE_VERSION}"
     EVSIEVE_VERSION="$FALLBACK_EVSIEVE_VERSION"
   fi
-else
-  EVSIEVE_VERSION="$VERSION_INPUT"
-fi
-echo "Using evsieve version: ${EVSIEVE_VERSION}"
 
-SKIP_SCROLL_INVERT=0
+  echo "Using evsieve version: ${EVSIEVE_VERSION}"
 
-mapfile -t MOUSE_CANDIDATES < <(ls /dev/input/by-id/ 2>/dev/null | grep -i 'event-mouse' || true)
-if [ "${#MOUSE_CANDIDATES[@]}" -eq 0 ]; then
-  echo "No mouse devices found. Falling back to default: ${DEFAULT_MOUSE_DEVICE}"
-  MOUSE_DEVICE="$DEFAULT_MOUSE_DEVICE"
-else
-  echo "Available mouse devices:"
-  for i in "${!MOUSE_CANDIDATES[@]}"; do
-    echo "   $((i + 1))) ${MOUSE_CANDIDATES[$i]}"
-  done
-  read -rp "Select a device by number (or press Enter for the default): " CHOICE
-  if [[ "$CHOICE" =~ ^[0-9]+$ ]] && [ "$CHOICE" -ge 1 ] && [ "$CHOICE" -le "${#MOUSE_CANDIDATES[@]}" ]; then
-    MOUSE_DEVICE="/dev/input/by-id/${MOUSE_CANDIDATES[$((CHOICE - 1))]}"
-  else
-    echo "No valid selection made — using default: ${DEFAULT_MOUSE_DEVICE}"
-    MOUSE_DEVICE="$DEFAULT_MOUSE_DEVICE"
-  fi
-fi
-
-# If the resolved device (selected or default) doesn't actually exist,
-# don't fail the whole step — just skip scroll-invert.
-if [ ! -e "$MOUSE_DEVICE" ]; then
-  echo -e "${YELLOW}Warning: ${MOUSE_DEVICE} does not exist on this machine.${NC}"
-  echo -e "${YELLOW}Skipping evsieve/scroll-invert setup.${NC}"
-  SKIP_SCROLL_INVERT=1
+  # Get device
+  DEFAULT_MOUSE_DEVICE="/dev/input/by-id/usb-HL_0000_00_00_00-01_USB_Device-if01-event-mouse"
+  MOUSE_DEVICE=""
   VENDOR_ID=""
   MODEL_ID=""
-else
-  VENDOR_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_VENDOR_ID=' | cut -d= -f2)
-  MODEL_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_MODEL_ID=' | cut -d= -f2)
-  if [ -z "$VENDOR_ID" ] || [ -z "$MODEL_ID" ]; then
-    echo -e "${YELLOW}Warning: could not read vendor/model ID for ${MOUSE_DEVICE}.${NC}"
-    echo -e "${YELLOW}Skipping evsieve/scroll-invert setup.${NC}"
-    SKIP_SCROLL_INVERT=1
+  mapfile -t MOUSE_CANDIDATES < <(ls /dev/input/by-id/ 2>/dev/null | grep -i 'event-mouse' || true)
+  if [ "${#MOUSE_CANDIDATES[@]}" -eq 0 ]; then
+    echo "No mouse devices found. Falling back to default: ${DEFAULT_MOUSE_DEVICE}"
+    MOUSE_DEVICE="$DEFAULT_MOUSE_DEVICE"
+  else
+    echo "Available mouse devices:"
+    for i in "${!MOUSE_CANDIDATES[@]}"; do
+      echo "   $((i + 1))) ${MOUSE_CANDIDATES[$i]}"
+    done
+
+    read -rp "Select a device by number, press Enter for the default: " CHOICE
+
+    if [[ "$CHOICE" =~ ^[0-9]+$ ]] && [ "$CHOICE" -ge 1 ] && [ "$CHOICE" -le "${#MOUSE_CANDIDATES[@]}" ]; then
+      MOUSE_DEVICE="/dev/input/by-id/${MOUSE_CANDIDATES[$((CHOICE - 1))]}"
+    else
+      echo "No valid selection made — using default: ${DEFAULT_MOUSE_DEVICE}"
+      MOUSE_DEVICE="$DEFAULT_MOUSE_DEVICE"
+    fi
   fi
-fi
 
-echo "Targeting device: ${MOUSE_DEVICE}"
+  # Get device ID
+  # If the resolved device (selected or default) doesn't actually exist,
+  # don't fail the whole step — just skip scroll-invert.
+  if [ ! -e "$MOUSE_DEVICE" ]; then
+    echo -e "${YELLOW}Warning: ${MOUSE_DEVICE} does not exist on this machine.${NC}"
+  else
+    VENDOR_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_VENDOR_ID=' | cut -d= -f2 || true)
+    MODEL_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_MODEL_ID=' | cut -d= -f2 || true)
+    if [ -z "$VENDOR_ID" ] || [ -z "$MODEL_ID" ]; then
+      echo -e "${YELLOW}Warning: could not read vendor/model ID for ${MOUSE_DEVICE}.${NC}"
+    else
+      echo "Targeting device: ${MOUSE_DEVICE}"
+    fi
+  fi
 
-if [ "$SKIP_SCROLL_INVERT" -eq 1 ]; then
-  echo -e "${YELLOW}Skipping evsieve/scroll-invert setup: no usable mouse device found.${NC}"
-else
-  cd /tmp
-  wget "https://github.com/KarsMulder/evsieve/archive/v${EVSIEVE_VERSION}.tar.gz" -O "evsieve-${EVSIEVE_VERSION}.tar.gz"
-  tar -xzf "evsieve-${EVSIEVE_VERSION}.tar.gz"
-  cd "evsieve-${EVSIEVE_VERSION}"
-  cargo build --release
-  sudo cp target/release/evsieve /usr/local/bin/
-  EVSIEVE_BIN="/usr/local/bin/evsieve"
+  # Installation
+  if [ -z "$VENDOR_ID" ] || [ -z "$MODEL_ID" ]; then
+    echo -e "${YELLOW}Skipping evsieve/scroll-invert setup.${NC}"
+  else
+    EVSIEVE_BIN="/usr/local/bin/evsieve"
+    INSTALLED_VERSION=$("$EVSIEVE_BIN" --version 2>/dev/null | awk '{print $2}' || true)
+    if [ "$INSTALLED_VERSION" = "$EVSIEVE_VERSION" ]; then
+      echo "evsieve version ${EVSIEVE_VERSION} is already installed. Skipping download and compilation."
+    else
+      wget "https://github.com/KarsMulder/evsieve/archive/v${EVSIEVE_VERSION}.tar.gz" -O "/tmp/evsieve-${EVSIEVE_VERSION}.tar.gz"
+      tar -xzf "/tmp/evsieve-${EVSIEVE_VERSION}.tar.gz" -C /tmp
+      cargo build --release --manifest-path="/tmp/evsieve-${EVSIEVE_VERSION}/Cargo.toml"
+      sudo cp "/tmp/evsieve-${EVSIEVE_VERSION}/target/release/evsieve" /usr/local/bin/
+    fi
 
-  sudo tee /etc/systemd/system/scroll-invert.service >/dev/null <<EOF
+    sudo tee /etc/systemd/system/scroll-invert.service >/dev/null <<EOF
 [Unit]
 Description=Invert scroll wheel for selected mouse
 After=multi-user.target
@@ -171,30 +182,42 @@ RestartSec=1
 WantedBy=multi-user.target
 EOF
 
-  sudo systemctl daemon-reload
-  sudo systemctl enable --now scroll-invert
-fi
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now scroll-invert
+  fi
+
+done
 
 # --- 7. Neovim + LazyVim ---
 echo -e "\n${CYAN}[6/8] Installing Neovim and LazyVim...${NC}"
-NVIM_URL=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest |
-  grep "browser_download_url.*nvim-linux-x86_64.tar.gz\"" |
-  cut -d '"' -f 4)
-cd /tmp
-curl -LO "$NVIM_URL"
-tar xzf nvim-linux-x86_64.tar.gz
-sudo rm -rf /opt/nvim
-sudo mv nvim-linux-x86_64 /opt/nvim
-sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
-rm nvim-linux-x86_64.tar.gz
-echo "Neovim $(nvim --version | head -1) installed"
 
-[ -d ~/.config/nvim ] && mv ~/.config/nvim ~/.config/nvim.bak.$(date +%s)
-git clone https://github.com/LazyVim/starter ~/.config/nvim
-rm -rf ~/.config/nvim/.git
+for _ in 1; do
+  NVIM_LATEST_TAG=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest |
+    grep '"tag_name":' |
+    sed -E 's/.*"tag_name": *"([^"]+)".*/\1/' || true)
+  CURRENT_VERSION=$(nvim --version 2>/dev/null | head -n 1 | awk '{print $2}' || true)
+  if [ -n "$NVIM_LATEST_TAG" ] && [ "$CURRENT_VERSION" = "$NVIM_LATEST_TAG" ]; then
+    echo "Neovim is already installed and up to date (${CURRENT_VERSION}). Skipping."
+    break
+  fi
 
-mkdir -p ~/.config/nvim/lua/plugins
-cat >~/.config/nvim/lua/plugins/colorscheme.lua <<'EOF'
+  NVIM_URL=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest |
+    grep "browser_download_url.*nvim-linux-x86_64.tar.gz\"" |
+    cut -d '"' -f 4)
+  curl -L "$NVIM_URL" -o /tmp/nvim-linux-x86_64.tar.gz
+  tar xzf /tmp/nvim-linux-x86_64.tar.gz -C /tmp
+  sudo rm -rf /opt/nvim
+  sudo mv /tmp/nvim-linux-x86_64 /opt/nvim
+  sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
+  rm /tmp/nvim-linux-x86_64.tar.gz
+  echo "Neovim $(nvim --version | head -1) installed"
+
+  [ -d ~/.config/nvim ] && mv ~/.config/nvim ~/.config/nvim.bak.$(date +%s)
+  git clone https://github.com/LazyVim/starter ~/.config/nvim
+  rm -rf ~/.config/nvim/.git
+
+  mkdir -p ~/.config/nvim/lua/plugins
+  cat >~/.config/nvim/lua/plugins/colorscheme.lua <<'EOF'
 return {
   {
     "LazyVim/LazyVim",
@@ -205,7 +228,7 @@ return {
 }
 EOF
 
-cat >~/.config/nvim/lua/plugins/korean.lua <<'EOF'
+  cat >~/.config/nvim/lua/plugins/korean.lua <<'EOF'
 return {
   {
     "kiyoon/Korean-IME.nvim",
@@ -227,7 +250,7 @@ return {
 }
 EOF
 
-cat >~/.config/nvim/lua/plugins/vimbegood.lua <<'EOF'
+  cat >~/.config/nvim/lua/plugins/vimbegood.lua <<'EOF'
 return {
   {
     "ThePrimeagen/vim-be-good",
@@ -236,25 +259,32 @@ return {
 }
 EOF
 
+done
+
 # --- 8. Git Credential Manager (GCM) ---
 echo -e "\n${CYAN}[7/8] Installing and configuring Git Credential Manager...${NC}"
-GCM_DEB_URL=$(curl -s https://api.github.com/repos/git-ecosystem/git-credential-manager/releases/latest |
-  grep "browser_download_url.*linux-x64.*\.deb\"" |
-  cut -d '"' -f 4 || true)
 
-if [ -z "$GCM_DEB_URL" ]; then
-  echo -e "${RED}Error: Failed to fetch the GCM download URL.${NC}"
-  exit 1
-fi
+for _ in 1; do
+  GCM_DEB_URL=$(curl -s https://api.github.com/repos/git-ecosystem/git-credential-manager/releases/latest |
+    grep "browser_download_url.*linux-x64.*\.deb\"" |
+    cut -d '"' -f 4 || true)
+  if [ -z "$GCM_DEB_URL" ]; then
+    echo -e "${RED}Error: Failed to fetch the GCM download URL. Skipping installation.${NC}"
+    break
+  fi
 
-cd /tmp
-wget "$GCM_DEB_URL" -O gcm-linux-x64.deb
-sudo dpkg -i gcm-linux-x64.deb || sudo apt-get install -f -y
+  if type -p git-credential-manager >/dev/null 2>&1; then
+    echo "Git Credential Manager is already installed. Skipping installation."
+  else
+    wget "$GCM_DEB_URL" -O /tmp/gcm-linux-x64.deb
+    sudo dpkg --install /tmp/gcm-linux-x64.deb || sudo apt-get install -f -y
+    rm /tmp/gcm-linux-x64.deb
+  fi
 
-git-credential-manager configure
-git config --global credential.credentialStore secretservice
-rm gcm-linux-x64.deb
-echo "Git Credential Manager configured with secretservice"
+  git-credential-manager configure
+  git config --global credential.credentialStore secretservice
+  echo "Git Credential Manager configured with secretservice."
+done
 
 git config --global core.editor "nvim"
 
