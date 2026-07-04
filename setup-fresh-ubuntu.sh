@@ -210,8 +210,19 @@ for _ in 1; do
   sudo mv /tmp/nvim-linux-x86_64 /opt/nvim
   sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
   rm /tmp/nvim-linux-x86_64.tar.gz
-  echo "Neovim $(nvim --version | head -1) installed"
+  echo "Neovim $(nvim --version | head -1) installed."
 
+  sudo update-alternatives --install /usr/bin/editor editor /usr/local/bin/nvim 60
+  sudo update-alternatives --set editor /usr/local/bin/nvim
+  if ! grep -q "export EDITOR=/usr/local/bin/nvim" ~/.profile 2>/dev/null; then
+    printf '\nexport EDITOR=/usr/local/bin/nvim' >>~/.profile
+  fi
+  if ! grep -q "export VISUAL=/usr/local/bin/nvim" ~/.profile 2>/dev/null; then
+    printf '\nexport VISUAL=/usr/local/bin/nvim' >>~/.profile
+  fi
+  echo "Registered nvim as system default editor."
+
+  # Back up existing config if present
   [ -d ~/.config/nvim ] && mv ~/.config/nvim ~/.config/nvim.bak.$(date +%s)
   git clone https://github.com/LazyVim/starter ~/.config/nvim
   rm -rf ~/.config/nvim/.git
@@ -258,7 +269,7 @@ return {
   },
 }
 EOF
-
+  echo "LazyVim is installed."
 done
 
 # --- 8. Git Credential Manager (GCM) ---

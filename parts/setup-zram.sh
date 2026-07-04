@@ -6,7 +6,7 @@ sudo apt install systemd-zram-generator
 
 sudo tee /etc/systemd/zram-generator.conf >/dev/null <<'EOF'
 [zram0]
-zram-size = ram * 2
+zram-size = ram * 1
 EOF
 
 sudo systemctl daemon-reload
