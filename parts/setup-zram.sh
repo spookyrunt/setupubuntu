@@ -14,3 +14,4 @@ sudo systemctl restart systemd-zram-setup@zram0.service
 
 swapon --show
 zramctl
+#watch -n 1 zramctl
