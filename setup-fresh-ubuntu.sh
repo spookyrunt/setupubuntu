@@ -54,8 +54,9 @@ fi
 
 # --- 4. GNOME settings ---
 echo -e "\n${CYAN}[4/8] Applying GNOME settings...${NC}"
-gsettings set org.gnome.desktop.interface text-scaling-factor 1.125
+gsettings set org.gnome.desktop.interface text-scaling-factor 1.10
 gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrainsMono Nerd Font 12'
+gsettings set org.gnome.SessionManager logout-prompt false
 
 HAS_DOCK=$(gsettings list-schemas | grep -q "org.gnome.shell.extensions.dash-to-dock" && echo "yes" || echo "no")
 if [ "$HAS_DOCK" = "yes" ]; then
