@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # setup vm env with qemu and kvm
-sudo apt update
-sudo apt install qemu-system virt-manager libvirt-daemon-system
+sudo apt update -y
+sudo apt install -y qemu-system virt-manager libvirt-daemon-system
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

@@ -22,7 +22,7 @@ echo "Samba user set to: $SAMBA_USER"
 echo "=========================================="
 
 # 1. Installation
-apt update
+apt update -y
 apt install -y samba nautilus-share smbclient
 
 # 2. Restart nautilus to update usershare menu (ignore failure)
