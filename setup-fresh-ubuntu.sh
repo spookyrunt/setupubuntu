@@ -300,7 +300,7 @@ done
 
 git config --global core.editor "nvim"
 
-# --- 9. Btrfs root separation + fstab tuning + Snapper ---
+# --- 9. Btrfs root separation + snapper + fstab tuning ---
 echo -e "\n${CYAN}[8/8] Checking filesystem and configuring Btrfs/Snapper...${NC}"
 if [ "$ROOT_FSTYPE" = "btrfs" ]; then
   echo -e "${GREEN}Root filesystem is btrfs — separating root, tuning fstab, and configuring snapper.${NC}"
@@ -345,59 +345,7 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
 
   sudo umount /mnt/topsetup
 
-  # --- 9b. fstab mount option tuning ---
-  FSTAB_PATH="/etc/fstab"
-  FSTAB_BACKUP="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
-  sudo cp "$FSTAB_PATH" "$FSTAB_BACKUP"
-  echo "fstab backup created at $FSTAB_BACKUP"
-
-  TEMP_FSTAB=$(mktemp)
-
-  while IFS= read -r line || [ -n "$line" ]; do
-    if [[ ! "$line" =~ ^[[:space:]]*# ]] && echo "$line" | awk '{print $3}' | grep -q "^btrfs$"; then
-      current_options=$(echo "$line" | awk '{print $4}')
-      new_options="$current_options"
-
-      if [[ "$new_options" != *noatime* ]]; then
-        new_options="${new_options:+$new_options,}noatime"
-      fi
-
-      if [[ "$new_options" == *compress-force=* ]]; then
-        new_options=$(echo "$new_options" | sed -E 's/compress-force=[a-z0-9:]+/compress-force=zstd/')
-      elif [[ "$new_options" == *compress=* ]]; then
-        new_options=$(echo "$new_options" | sed -E 's/compress=[a-z0-9:]+/compress=zstd/')
-      else
-        new_options="${new_options:+$new_options,}compress=zstd"
-      fi
-
-      updated_line="${line/"$current_options"/"$new_options"}"
-      echo "$updated_line" >>"$TEMP_FSTAB"
-    else
-      echo "$line" >>"$TEMP_FSTAB"
-    fi
-  done <"$FSTAB_PATH"
-
-  if ! grep -qE '\s+/\.snapshots\s' "$TEMP_FSTAB"; then
-    echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$TEMP_FSTAB"
-  fi
-
-  sudo mv "$TEMP_FSTAB" "$FSTAB_PATH"
-  sudo chmod 644 "$FSTAB_PATH"
-
-  echo "Reloading systemd manager configuration..."
-  sudo systemctl daemon-reload
-
-  echo "Applying new mount options..."
-  if ! sudo mount -a; then
-    echo "mount -a failed! Restoring fstab from backup."
-    sudo cp "$FSTAB_BACKUP" "$FSTAB_PATH"
-    sudo systemctl daemon-reload
-    exit 1
-  fi
-
-  echo "--- Current Btrfs Mount Status ---"
-  mount | grep btrfs || true
-
+  # --- 9b. setup snapper ---
   CONFIG_NAME="root"
   CONFIG_PATH="/etc/snapper/configs/$CONFIG_NAME"
 
@@ -482,6 +430,59 @@ INNEREOF
     echo "  cat /proc/cmdline"
     echo "  sudo btrfs subvolume get-default /"
   fi
+
+  # --- 9c. fstab mount option tuning ---
+  FSTAB_PATH="/etc/fstab"
+  FSTAB_BACKUP="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
+  sudo cp "$FSTAB_PATH" "$FSTAB_BACKUP"
+  echo "fstab backup created at $FSTAB_BACKUP"
+
+  TEMP_FSTAB=$(mktemp)
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [[ ! "$line" =~ ^[[:space:]]*# ]] && echo "$line" | awk '{print $3}' | grep -q "^btrfs$"; then
+      current_options=$(echo "$line" | awk '{print $4}')
+      new_options="$current_options"
+
+      if [[ "$new_options" != *noatime* ]]; then
+        new_options="${new_options:+$new_options,}noatime"
+      fi
+
+      if [[ "$new_options" == *compress-force=* ]]; then
+        new_options=$(echo "$new_options" | sed -E 's/compress-force=[a-z0-9:]+/compress-force=zstd/')
+      elif [[ "$new_options" == *compress=* ]]; then
+        new_options=$(echo "$new_options" | sed -E 's/compress=[a-z0-9:]+/compress=zstd/')
+      else
+        new_options="${new_options:+$new_options,}compress=zstd"
+      fi
+
+      updated_line="${line/"$current_options"/"$new_options"}"
+      echo "$updated_line" >>"$TEMP_FSTAB"
+    else
+      echo "$line" >>"$TEMP_FSTAB"
+    fi
+  done <"$FSTAB_PATH"
+
+  if ! grep -qE '\s+/\.snapshots\s' "$TEMP_FSTAB"; then
+    echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$TEMP_FSTAB"
+  fi
+
+  sudo mv "$TEMP_FSTAB" "$FSTAB_PATH"
+  sudo chmod 644 "$FSTAB_PATH"
+
+  echo "Reloading systemd manager configuration..."
+  sudo systemctl daemon-reload
+
+  echo "Applying new mount options..."
+  if ! sudo mount -a; then
+    echo "mount -a failed! Restoring fstab from backup."
+    sudo cp "$FSTAB_BACKUP" "$FSTAB_PATH"
+    sudo systemctl daemon-reload
+    exit 1
+  fi
+
+  echo "--- Current Btrfs Mount Status ---"
+  mount | grep btrfs || true
 else
   echo -e "${YELLOW}Root filesystem is ${ROOT_FSTYPE}, not btrfs — skipping btrfs tuning and snapper setup.${NC}"
 fi

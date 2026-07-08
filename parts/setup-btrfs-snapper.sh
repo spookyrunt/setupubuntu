@@ -49,58 +49,7 @@ fi
 umount /mnt/topsetup
 
 #################################################
-# PART 2: Normalize fstab options (noatime, compress=zstd)
-#################################################
-
-TEMP_FSTAB=$(mktemp)
-
-while IFS= read -r line || [ -n "$line" ]; do
-  if [[ ! "$line" =~ ^[[:space:]]*# ]] && echo "$line" | awk '{print $3}' | grep -q "^btrfs$"; then
-    current_options=$(echo "$line" | awk '{print $4}')
-    new_options="$current_options"
-
-    if [[ "$new_options" != *noatime* ]]; then
-      new_options="${new_options:+$new_options,}noatime"
-    fi
-
-    if [[ "$new_options" == *compress-force=* ]]; then
-      new_options=$(echo "$new_options" | sed -E 's/compress-force=[a-z0-9:]+/compress-force=zstd/')
-    elif [[ "$new_options" == *compress=* ]]; then
-      new_options=$(echo "$new_options" | sed -E 's/compress=[a-z0-9:]+/compress=zstd/')
-    else
-      new_options="${new_options:+$new_options,}compress=zstd"
-    fi
-
-    updated_line="${line/"$current_options"/"$new_options"}"
-    echo "$updated_line" >>"$TEMP_FSTAB"
-  else
-    echo "$line" >>"$TEMP_FSTAB"
-  fi
-done <"$FSTAB_PATH"
-
-if ! grep -qE '\s+/\.snapshots\s' "$TEMP_FSTAB"; then
-  echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$TEMP_FSTAB"
-fi
-
-mv "$TEMP_FSTAB" "$FSTAB_PATH"
-chmod 644 "$FSTAB_PATH"
-
-echo "Reloading systemd manager configuration..."
-systemctl daemon-reload
-
-echo "Applying new mount options..."
-if ! mount -a; then
-  echo "mount -a failed! Restoring fstab from backup."
-  cp "$FSTAB_BACKUP" "$FSTAB_PATH"
-  systemctl daemon-reload
-  exit 1
-fi
-
-echo "--- Current Btrfs Mount Status ---"
-mount | grep btrfs
-
-#################################################
-# PART 3: Install and configure snapper
+# PART 2: Install and configure snapper
 #################################################
 
 echo "Installing snapper..."
@@ -178,6 +127,57 @@ systemctl enable --now snapper-cleanup.timer
 
 echo "Creating initial verification snapshot..."
 snapper -c "$CONFIG_NAME" create -d "Initial automated setup"
+
+#################################################
+# PART 3: Normalize fstab options (noatime, compress=zstd)
+#################################################
+
+TEMP_FSTAB=$(mktemp)
+
+while IFS= read -r line || [ -n "$line" ]; do
+  if [[ ! "$line" =~ ^[[:space:]]*# ]] && echo "$line" | awk '{print $3}' | grep -q "^btrfs$"; then
+    current_options=$(echo "$line" | awk '{print $4}')
+    new_options="$current_options"
+
+    if [[ "$new_options" != *noatime* ]]; then
+      new_options="${new_options:+$new_options,}noatime"
+    fi
+
+    if [[ "$new_options" == *compress-force=* ]]; then
+      new_options=$(echo "$new_options" | sed -E 's/compress-force=[a-z0-9:]+/compress-force=zstd/')
+    elif [[ "$new_options" == *compress=* ]]; then
+      new_options=$(echo "$new_options" | sed -E 's/compress=[a-z0-9:]+/compress=zstd/')
+    else
+      new_options="${new_options:+$new_options,}compress=zstd"
+    fi
+
+    updated_line="${line/"$current_options"/"$new_options"}"
+    echo "$updated_line" >>"$TEMP_FSTAB"
+  else
+    echo "$line" >>"$TEMP_FSTAB"
+  fi
+done <"$FSTAB_PATH"
+
+if ! grep -qE '\s+/\.snapshots\s' "$TEMP_FSTAB"; then
+  echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$TEMP_FSTAB"
+fi
+
+mv "$TEMP_FSTAB" "$FSTAB_PATH"
+chmod 644 "$FSTAB_PATH"
+
+echo "Reloading systemd manager configuration..."
+systemctl daemon-reload
+
+echo "Applying new mount options..."
+if ! mount -a; then
+  echo "mount -a failed! Restoring fstab from backup."
+  cp "$FSTAB_BACKUP" "$FSTAB_PATH"
+  systemctl daemon-reload
+  exit 1
+fi
+
+echo "--- Current Btrfs Mount Status ---"
+mount | grep btrfs
 
 #################################################
 # PART 4: Final verification
