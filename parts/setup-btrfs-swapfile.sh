@@ -17,10 +17,33 @@ fi
 
 echo "Setting up a ${swap_size_gib}GiB swapfile..."
 
+# create /@swap subvolume
+[ -d /@swap ] ||
+  sudo btrfs subvolume create /@swap
+
+# check /@swap
+sudo btrfs subvolume show /@swap || {
+  echo "Error: /@swap exists but is not a subvolume."
+  exit 1
+}
+
+# off /@swap/swapfile
+swapon --show | grep -q '/@swap/swapfile' && sudo swapoff /@swap/swapfile
+[ -f /@swap/swapfile ] && sudo rm /@swap/swapfile
+
+# off /swapfile
 swapon --show | grep -q '/swapfile' && sudo swapoff /swapfile
-sudo rm /swapfile
-sudo btrfs filesystem mkswapfile --size "${swap_size_gib}g" /swapfile
-sudo swapon /swapfile
-grep --quiet '/swapfile' /etc/fstab || echo "/swapfile none swap defaults 0 0" | sudo tee --append /etc/fstab >/dev/null
+[ -f /swapfile ] && sudo rm /swapfile
+
+# swap on
+sudo btrfs filesystem mkswapfile --size "${swap_size_gib}g" /@swap/swapfile
+sudo swapon /@swap/swapfile
+
+# fstab
+sudo sed -i '\|^/swapfile |d' /etc/fstab
+grep --quiet '^/@swap/swapfile ' /etc/fstab ||
+  echo "/@swap/swapfile none swap defaults 0 0" | sudo tee --append /etc/fstab
+
+# fin
 swapon --show
 free -h
