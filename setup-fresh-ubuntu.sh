@@ -432,12 +432,11 @@ INNEREOF
   fi
 
   # --- 9c. fstab mount option tuning ---
-  FSTAB_PATH="/etc/fstab"
-  FSTAB_BACKUP="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
-  sudo cp "$FSTAB_PATH" "$FSTAB_BACKUP"
-  echo "fstab backup created at $FSTAB_BACKUP"
+  FSTAB_BAK="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
+  sudo cp /etc/fstab "$FSTAB_BAK"
+  echo "fstab backup created at $FSTAB_BAK"
 
-  TEMP_FSTAB=$(mktemp)
+  FSTAB_TMP=$(mktemp)
 
   while IFS= read -r line || [ -n "$line" ]; do
     if [[ ! "$line" =~ ^[[:space:]]*# ]] && echo "$line" | awk '{print $3}' | grep -q "^btrfs$"; then
@@ -457,18 +456,19 @@ INNEREOF
       fi
 
       updated_line="${line/"$current_options"/"$new_options"}"
-      echo "$updated_line" >>"$TEMP_FSTAB"
+      echo "$updated_line" >>"$FSTAB_TMP"
     else
-      echo "$line" >>"$TEMP_FSTAB"
+      echo "$line" >>"$FSTAB_TMP"
     fi
-  done <"$FSTAB_PATH"
+  done </etc/fstab
 
-  if ! grep -qE '\s+/\.snapshots\s' "$TEMP_FSTAB"; then
-    echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$TEMP_FSTAB"
+  if ! grep -qE '\s+/\.snapshots\s' "$FSTAB_TMP"; then
+    echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$FSTAB_TMP"
   fi
 
-  sudo mv "$TEMP_FSTAB" "$FSTAB_PATH"
-  sudo chmod 644 "$FSTAB_PATH"
+  cat "$FSTAB_TMP" | sudo tee /etc/fstab
+  #sudo chown root:root /etc/fstab
+  #sudo chmod 644 /etc/fstab
 
   echo "Reloading systemd manager configuration..."
   sudo systemctl daemon-reload
@@ -476,7 +476,7 @@ INNEREOF
   echo "Applying new mount options..."
   if ! sudo mount -a; then
     echo "mount -a failed! Restoring fstab from backup."
-    sudo cp "$FSTAB_BACKUP" "$FSTAB_PATH"
+    sudo cp "$FSTAB_BAK" /etc/fstab
     sudo systemctl daemon-reload
     exit 1
   fi

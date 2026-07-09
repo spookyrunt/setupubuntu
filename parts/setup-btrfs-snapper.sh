@@ -10,12 +10,6 @@ fi
 # PART 1: Separate root subvolume from snapshot tree
 #################################################
 
-FSTAB_PATH="/etc/fstab"
-FSTAB_BACKUP="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
-
-cp "$FSTAB_PATH" "$FSTAB_BACKUP"
-echo "fstab backup created at $FSTAB_BACKUP"
-
 ROOT_DEV=$(findmnt -no UUID /)
 ROOT_DEV="/dev/disk/by-uuid/${ROOT_DEV}"
 echo "Root device: $ROOT_DEV"
@@ -131,8 +125,12 @@ snapper -c "$CONFIG_NAME" create -d "Initial automated setup"
 #################################################
 # PART 3: Normalize fstab options (noatime, compress=zstd)
 #################################################
+FSTAB_PATH="/etc/fstab"
+FSTAB_BAK="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
+cp "$FSTAB_PATH" "$FSTAB_BAK"
+echo "fstab backup created at $FSTAB_BAK"
 
-TEMP_FSTAB=$(mktemp)
+FSTAB_TMP=$(mktemp)
 
 while IFS= read -r line || [ -n "$line" ]; do
   if [[ ! "$line" =~ ^[[:space:]]*# ]] && echo "$line" | awk '{print $3}' | grep -q "^btrfs$"; then
@@ -152,18 +150,19 @@ while IFS= read -r line || [ -n "$line" ]; do
     fi
 
     updated_line="${line/"$current_options"/"$new_options"}"
-    echo "$updated_line" >>"$TEMP_FSTAB"
+    echo "$updated_line" >>"$FSTAB_TMP"
   else
-    echo "$line" >>"$TEMP_FSTAB"
+    echo "$line" >>"$FSTAB_TMP"
   fi
 done <"$FSTAB_PATH"
 
-if ! grep -qE '\s+/\.snapshots\s' "$TEMP_FSTAB"; then
-  echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$TEMP_FSTAB"
+if ! grep -qE '\s+/\.snapshots\s' "$FSTAB_TMP"; then
+  echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$FSTAB_TMP"
 fi
 
-mv "$TEMP_FSTAB" "$FSTAB_PATH"
-chmod 644 "$FSTAB_PATH"
+cat "$FSTAB_TMP" | sudo tee "$FSTAB_PATH"
+#sudo chown root:root /etc/fstab
+#sudo chmod 644 /etc/fstab
 
 echo "Reloading systemd manager configuration..."
 systemctl daemon-reload
@@ -171,7 +170,7 @@ systemctl daemon-reload
 echo "Applying new mount options..."
 if ! mount -a; then
   echo "mount -a failed! Restoring fstab from backup."
-  cp "$FSTAB_BACKUP" "$FSTAB_PATH"
+  cp "$FSTAB_BAK" "$FSTAB_PATH"
   systemctl daemon-reload
   exit 1
 fi
