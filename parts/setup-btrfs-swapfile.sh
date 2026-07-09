@@ -17,15 +17,9 @@ fi
 
 echo "Setting up a ${swap_size_gib}GiB swapfile..."
 
-# create /@swap subvolume
-[ -d /@swap ] ||
-  sudo btrfs subvolume create /@swap
-
-# check /@swap
-sudo btrfs subvolume show /@swap || {
-  echo "Error: /@swap exists but is not a subvolume."
-  exit 1
-}
+# subvolume
+sudo btrfs subvolume show /@swap || sudo rm -rf /@swap
+[ -d /@swap ] || sudo btrfs subvolume create /@swap
 
 # off /@swap/swapfile
 swapon --show | grep -q '/@swap/swapfile' && sudo swapoff /@swap/swapfile
