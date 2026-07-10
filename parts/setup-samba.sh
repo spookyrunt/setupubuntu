@@ -2,8 +2,8 @@
 set -euo pipefail
 
 if [ "$EUID" -ne 0 ]; then
-  echo "Please run as root (sudo ./setup_samba.sh)"
-  exit 1
+  echo "Elevating privileges (sudo)..."
+  exec sudo bash "$0" "$@"
 fi
 
 # Get the actual user even when running with sudo
@@ -79,5 +79,11 @@ echo "----- testparm -s -----"
 testparm -s 2>/dev/null
 
 echo "Note: smbclient maybe useful."
-
+echo
+echo "=========================================="
+echo "IMPORTANT: Please log out and log back in"
+echo "(or reboot) for '$TARGET_USER' to gain"
+echo "sambashare group permissions."
+echo "=========================================="
+echo
 echo "Done."
