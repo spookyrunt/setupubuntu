@@ -7,7 +7,7 @@ sudo ln -s "$HOME/.nix-profile/bin/lynis" /usr/local/bin/lynis
 sudo lynis audit system
 
 sudo apt install firejail
-sudo firecfg
+#sudo firecfg
 
 sudo apt install fail2ban
 sudo systemctl enable --now fail2ban
