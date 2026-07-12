@@ -41,3 +41,5 @@ tee playbook.yml <<<"- hosts: localhost
 
 sudo ansible-galaxy collection install ansible.posix
 sudo ansible-playbook playbook.yml
+
+echo "Done. Restart your system."
