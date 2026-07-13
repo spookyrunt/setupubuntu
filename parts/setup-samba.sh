@@ -34,13 +34,24 @@ mkdir -p /var/lib/samba/usershares
 # 4. Add target user to sambashare group
 usermod -aG sambashare "$TARGET_USER"
 
-# 5. Configure usershare max shares in smb.conf (avoid duplication)
+# 5. Configure usershare global settings in smb.conf using sed
 SMB_CONF="/etc/samba/smb.conf"
+
+# 5-1. Configure usershare max shares
 if ! grep -q "^\s*usershare max shares" "$SMB_CONF"; then
-  sed -i '/^\[global\]/a\   usershare max shares = 100' "$SMB_CONF"
+  sed -i '/^\[global\]/a \   usershare max shares = 100' "$SMB_CONF"
   echo "Added 'usershare max shares = 100' to smb.conf"
+fi
+
+# 5-2. Configure creation masks to override user umask (0027) and force o+r
+if ! grep -q "^\s*force create mode" "$SMB_CONF"; then
+  # Force 744 permissions for new files to ensure others(o) have read(r) access
+  # Force 755 permissions for new directories to ensure others(o) have read/execute(rx) access
+  # Using backslash at the end of each line for multi-line insertion in standard sed
+  sed -i '/^\[global\]/a \   create mask = 0744\n   force create mode = 0744\n   directory mask = 0755\n   force directory mode = 0755' "$SMB_CONF"
+  echo "Added 744/755 creation masks to smb.conf"
 else
-  echo "Already configured (usershare max shares)"
+  echo "Samba creation masks already configured"
 fi
 
 # 6. Create custom Samba account (no-login account)
