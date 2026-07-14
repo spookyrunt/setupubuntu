@@ -36,6 +36,7 @@ tee playbook.yml <<<"- hosts: localhost
     hidepid_option: "0"
     sysctl_overwrite:
       net.ipv4.ip_forward: 1
+      kernel.unprivileged_userns_clone: 1
   roles:
     - roles/os_hardening"
 
