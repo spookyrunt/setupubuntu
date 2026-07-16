@@ -380,7 +380,7 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
 
   echo "Configuring number-based cleanup for apt/boot snapshots..."
   set_config_value "NUMBER_CLEANUP" "yes"
-  set_config_value "NUMBER_LIMIT" "50"
+  set_config_value "NUMBER_LIMIT" "10"
   set_config_value "NUMBER_LIMIT_IMPORTANT" "10"
 
   HOOK_PATH="/etc/apt/apt.conf.d/80snapper"
