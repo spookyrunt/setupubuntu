@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # https://flathub.org/en/setup/Ubuntu
 sudo apt install flatpak
