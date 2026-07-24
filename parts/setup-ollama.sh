@@ -32,3 +32,8 @@ echo ">>> Pre-configuration complete. Running the official Ollama installer..."
 echo "--------------------------------------------------------"
 
 curl -fsSL https://ollama.com/install.sh | sh
+
+RAM=$(free -m | awk '/^Mem:/{print $2}')
+sudo sed -i "/\[Service\]/a Environment=\"OLLAMA_HOST=0.0.0.0:11434\"\nEnvironment=\"OLLAMA_CONTEXT_LENGTH=${RAM}\"" /etc/systemd/system/ollama.service
+sudo systemctl daemon-reload
+sudo systemctl restart ollama.service
