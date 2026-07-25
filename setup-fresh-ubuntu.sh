@@ -19,7 +19,7 @@ sudo apt update -y
 sudo apt upgrade -y
 sudo apt install -y \
   ibus-hangul language-pack-ko gedit \
-  gnome-shell-extension-manager gnome-tweaks \
+  gnome-shell-extension-manager gnome-shell gnome-tweaks \
   cargo libevdev-dev \
   xclip xsel wl-clipboard \
   curl git unzip build-essential \
@@ -61,6 +61,7 @@ gsettings set org.gnome.SessionManager logout-prompt false
 HAS_DOCK=$(gsettings list-schemas | grep -q "org.gnome.shell.extensions.dash-to-dock" && echo "yes" || echo "no")
 if [ "$HAS_DOCK" = "yes" ]; then
   gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'RIGHT'
+  gsettings set org.gnome.shell.extensions.dash-to-dock show-mounts-only-mounted true
 else
   echo -e "${YELLOW}Skipped dock-position: dash-to-dock extension not found/enabled.${NC}"
 fi
