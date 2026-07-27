@@ -20,11 +20,12 @@ sudo apt upgrade -y
 sudo apt install -y \
   ibus-hangul language-pack-ko gedit \
   gnome-shell-extension-manager gnome-shell gnome-tweaks \
-  cargo libevdev-dev \
-  xclip xsel wl-clipboard \
   curl git unzip build-essential \
+  xclip xsel wl-clipboard \
   ripgrep fd-find fzf sd \
   python3 python3-pip nodejs npm \
+  cargo libevdev-dev \
+  etckeeper \
   snapper btrfs-assistant # btrfs-progs btrfs-heatmap btrfs-compsize
 
 if ! command -v fd &>/dev/null; then
@@ -299,6 +300,7 @@ for _ in 1; do
   echo "Git Credential Manager configured with secretservice."
 done
 
+sudo etckeeper init
 git config --global core.editor "nvim"
 
 # --- 9. Btrfs root separation + snapper + fstab tuning ---
