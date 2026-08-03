@@ -91,8 +91,8 @@ HOOK_PATH="/etc/apt/apt.conf.d/80snapper"
 STATE_FILE="/run/snapper-apt-pre-number"
 echo "Creating APT hook for Snapper at $HOOK_PATH..."
 cat <<EOF >"$HOOK_PATH"
-DPkg::Pre-Invoke {"[ -x /usr/bin/snapper ] && /usr/bin/snapper -c root create --print-number -t pre -d 'APT Pre-Invoke' > ${STATE_FILE} 2>/dev/null || true";};
-DPkg::Post-Invoke {"[ -x /usr/bin/snapper ] && [ -f ${STATE_FILE} ] && /usr/bin/snapper -c root create -d 'APT Post-Invoke' -t post --pre-number=\$(cat ${STATE_FILE}) || true";};
+DPkg::Pre-Invoke {"[ -x /usr/bin/snapper ] && /usr/bin/snapper -c root create --print-number -t pre --cleanup-algorithm number -d 'APT Pre-Invoke' > ${STATE_FILE} 2>/dev/null || true";};
+DPkg::Post-Invoke {"[ -x /usr/bin/snapper ] && [ -f ${STATE_FILE} ] && /usr/bin/snapper -c root create --cleanup-algorithm number -d 'APT Post-Invoke' -t post --pre-number=\$(cat ${STATE_FILE}) || true";};
 EOF
 chmod 644 "$HOOK_PATH"
 
