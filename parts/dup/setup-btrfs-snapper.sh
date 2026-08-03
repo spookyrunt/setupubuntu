@@ -106,7 +106,7 @@ ConditionPathExists=/etc/snapper/configs/root
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/snapper -c root create -d "Boot Snapshot"
+ExecStart=/usr/bin/snapper -c root create --cleanup-algorithm number -d "Boot Snapshot"
 
 [Install]
 WantedBy=default.target
