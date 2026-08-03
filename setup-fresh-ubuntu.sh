@@ -301,6 +301,7 @@ for _ in 1; do
 done
 
 sudo etckeeper init
+sudo sed -i 's/^#* *AVOID_DAILY_AUTOCOMMITS=.*/AVOID_DAILY_AUTOCOMMITS=1/' /etc/etckeeper/etckeeper.conf
 git config --global core.editor "nvim"
 
 # --- 9. Btrfs root separation + snapper + fstab tuning ---
