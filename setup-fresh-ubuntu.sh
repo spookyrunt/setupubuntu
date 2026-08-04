@@ -28,9 +28,18 @@ sudo apt install -y \
   etckeeper \
   snapper btrfs-assistant # btrfs-progs btrfs-heatmap btrfs-compsize
 
+# setup fd nvim uses
 if ! command -v fd &>/dev/null; then
   sudo ln -sf "$(which fdfind)" /usr/local/bin/fd
 fi
+
+# setup etckeeper
+sudo etckeeper init
+sudo sed -i 's/^#* *AVOID_DAILY_AUTOCOMMITS=.*/AVOID_DAILY_AUTOCOMMITS=1/' /etc/etckeeper/etckeeper.conf
+sudo systemctl mask --now etckeeper.timer
+
+# setup cups-browsed
+sudo systemctl mask --now cups-browsed
 
 ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
 echo "Detected root filesystem type: ${ROOT_FSTYPE}"
@@ -275,6 +284,8 @@ EOF
   echo "LazyVim is installed."
 done
 
+git config --global core.editor "nvim"
+
 # --- 8. Git Credential Manager (GCM) ---
 echo -e "\n${CYAN}[7/8] Installing and configuring Git Credential Manager...${NC}"
 
@@ -299,10 +310,6 @@ for _ in 1; do
   git config --global credential.credentialStore secretservice
   echo "Git Credential Manager configured with secretservice."
 done
-
-sudo etckeeper init
-sudo sed -i 's/^#* *AVOID_DAILY_AUTOCOMMITS=.*/AVOID_DAILY_AUTOCOMMITS=1/' /etc/etckeeper/etckeeper.conf
-git config --global core.editor "nvim"
 
 # --- 9. Btrfs root separation + snapper + fstab tuning ---
 echo -e "\n${CYAN}[8/8] Checking filesystem and configuring Btrfs/Snapper...${NC}"
