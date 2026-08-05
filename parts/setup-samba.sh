@@ -54,6 +54,18 @@ else
   echo "Samba creation masks already configured"
 fi
 
+# 5-3. Disable SMB1
+if ! grep -q "^\s*server min protocol" "$SMB_CONF"; then
+  sed -i '/^\[global\]/a \   server min protocol = SMB2' "$SMB_CONF"
+  echo "Added 'server min protocol = SMB2' to smb.conf"
+fi
+
+# 5-4. Disable :139
+if ! grep -q "^\s*smb ports = 445" "$SMB_CONF"; then
+  sed -i '/^\[global\]/a \   smb ports = 445' "$SMB_CONF"
+  echo "Added 'smb ports = 445' to smb.conf"
+fi
+
 # 6. Create custom Samba account (no-login account)
 if id "$SAMBA_USER" &>/dev/null; then
   echo "Account '$SAMBA_USER' already exists"
