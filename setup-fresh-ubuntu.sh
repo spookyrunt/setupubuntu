@@ -41,6 +41,11 @@ sudo systemctl mask --now etckeeper.timer
 # setup cups-browsed
 sudo systemctl mask --now cups-browsed
 
+# export cargo install bin
+if ! grep -q 'export PATH="$HOME/.cargo/bin:$PATH"' ~/.profile 2>/dev/null; then
+  printf '\nexport PATH="$HOME/.cargo/bin:$PATH"' >>~/.profile
+fi
+
 ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
 echo "Detected root filesystem type: ${ROOT_FSTYPE}"
 
