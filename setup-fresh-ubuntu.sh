@@ -38,6 +38,9 @@ sudo etckeeper init
 sudo sed -i 's/^#* *AVOID_DAILY_AUTOCOMMITS=.*/AVOID_DAILY_AUTOCOMMITS=1/' /etc/etckeeper/etckeeper.conf
 sudo systemctl mask --now etckeeper.timer
 
+# setup age
+sudo chage -m 0 -M -1 $USER
+
 # setup cups-browsed
 sudo systemctl mask --now cups-browsed
 
