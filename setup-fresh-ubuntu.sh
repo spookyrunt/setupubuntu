@@ -81,6 +81,9 @@ else
   echo -e "${YELLOW}Skipped dock-position: dash-to-dock extension not found/enabled.${NC}"
 fi
 
+gsettings set org.gnome.mutter center-new-windows false
+gsettings set org.gnome.mutter attach-modal-dialogs false
+
 # --- 5. Purge Apport and GNOME Text Editor ---
 [ -f "/etc/default/apport" ] && sudo sed -i 's/enabled=1/enabled=0/' /etc/default/apport
 sudo apt purge 'apport*' gnome-text-editor
