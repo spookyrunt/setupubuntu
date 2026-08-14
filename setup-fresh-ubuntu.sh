@@ -11,6 +11,10 @@ echo -e "${CYAN}==================================================${NC}"
 echo -e "${YELLOW}Fresh Ubuntu Setup: Hangul, Nerd Font, GNOME, evsieve, Neovim, Btrfs/Snapper${NC}"
 echo -e "${CYAN}==================================================${NC}"
 
+# --- 0. User permission ---
+sudo chage -m 0 -M -1 $USER
+sudo usermod -aG dialout $USER
+
 # --- 1. System update + all packages, once (Snapper integrated) ---
 # Runs first so curl, git, etc. are available for
 # everything below, before any interactive prompts.
@@ -37,9 +41,6 @@ fi
 sudo etckeeper init
 sudo sed -i 's/^#* *AVOID_DAILY_AUTOCOMMITS=.*/AVOID_DAILY_AUTOCOMMITS=1/' /etc/etckeeper/etckeeper.conf
 sudo systemctl mask --now etckeeper.timer
-
-# setup age
-sudo chage -m 0 -M -1 $USER
 
 # setup cups-browsed
 sudo systemctl mask --now cups-browsed
