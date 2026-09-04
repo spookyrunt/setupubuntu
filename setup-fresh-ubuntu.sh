@@ -46,8 +46,13 @@ sudo systemctl mask --now etckeeper.timer
 sudo systemctl mask --now cups-browsed
 
 # export cargo install bin
-if ! grep -q 'export PATH="$HOME/.cargo/bin:$PATH"' ~/.profile 2>/dev/null; then
-  printf '\nexport PATH="$HOME/.cargo/bin:$PATH"' >>~/.profile
+if ! grep -q 'export PATH="$PATH:$HOME/.cargo/bin"' ~/.profile 2>/dev/null; then
+  printf '\nexport PATH="$PATH:$HOME/.cargo/bin"' >>~/.profile
+fi
+
+# export go bin
+if ! grep -q 'export PATH="$PATH:$HOME/go/bin"' ~/.profile 2>/dev/null; then
+  printf '\nexport PATH="$PATH:$HOME/go/bin"' >>~/.profile
 fi
 
 ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
@@ -85,7 +90,7 @@ else
   echo -e "${YELLOW}Skipped dock-position: dash-to-dock extension not found/enabled.${NC}"
 fi
 
-gsettings set org.gnome.mutter center-new-windows false
+# gsettings set org.gnome.mutter center-new-windows false
 gsettings set org.gnome.mutter attach-modal-dialogs false
 
 # --- 5. Purge Apport and GNOME Text Editor ---
