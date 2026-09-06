@@ -45,7 +45,7 @@ sudo systemctl mask --now etckeeper.timer
 # setup cups-browsed
 sudo systemctl mask --now cups-browsed
 
-# export cargo install bin
+# export cargo bin
 if ! grep -q 'export PATH="$PATH:$HOME/.cargo/bin"' ~/.profile 2>/dev/null; then
   printf '\nexport PATH="$PATH:$HOME/.cargo/bin"' >>~/.profile
 fi
