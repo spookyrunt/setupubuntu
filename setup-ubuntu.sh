@@ -45,14 +45,15 @@ sudo systemctl mask --now etckeeper.timer
 # setup cups-browsed
 sudo systemctl mask --now cups-browsed
 
-# export cargo bin
-if ! grep -q 'export PATH="$PATH:$HOME/.cargo/bin"' ~/.profile 2>/dev/null; then
-  printf '\nexport PATH="$PATH:$HOME/.cargo/bin"' >>~/.profile
-fi
+# setup rustup cargo
+rustup default stable
 
 # export go bin
-if ! grep -q 'export PATH="$PATH:$HOME/go/bin"' ~/.profile 2>/dev/null; then
-  printf '\nexport PATH="$PATH:$HOME/go/bin"' >>~/.profile
+if ! grep -q 'export PATH="$PATH:$HOME/go/bin"' ~/.bash_profile 2>/dev/null; then
+  printf '\nexport PATH="$PATH:$HOME/go/bin"' >>~/.bash_profile
+fi
+if ! grep -q 'export PATH="$PATH:/usr/local/go/bin"' ~/.bash_profile 2>/dev/null; then
+  printf '\nexport PATH="$PATH:/usr/local/go/bin"' >>~/.bash_profile
 fi
 
 ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
