@@ -414,16 +414,17 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
 
   echo "Configuring timeline snapshot retention..."
   set_config_value "TIMELINE_CREATE" "yes"
-  set_config_value "TIMELINE_LIMIT_HOURLY" "6"
-  set_config_value "TIMELINE_LIMIT_DAILY" "7"
-  set_config_value "TIMELINE_LIMIT_WEEKLY" "4"
-  set_config_value "TIMELINE_LIMIT_MONTHLY" "0"
+  set_config_value "TIMELINE_CLEANUP" "yes"
+  set_config_value "TIMELINE_LIMIT_HOURLY" "2"
+  set_config_value "TIMELINE_LIMIT_DAILY" "2"
+  set_config_value "TIMELINE_LIMIT_WEEKLY" "2"
+  set_config_value "TIMELINE_LIMIT_MONTHLY" "1"
   set_config_value "TIMELINE_LIMIT_YEARLY" "0"
 
   echo "Configuring number-based cleanup for apt/boot snapshots..."
   set_config_value "NUMBER_CLEANUP" "yes"
-  set_config_value "NUMBER_LIMIT" "10"
-  set_config_value "NUMBER_LIMIT_IMPORTANT" "10"
+  set_config_value "NUMBER_LIMIT" "5"
+  set_config_value "NUMBER_LIMIT_IMPORTANT" "5"
 
   HOOK_PATH="/etc/apt/apt.conf.d/80snapper"
   STATE_FILE="/run/snapper-apt-pre-number"
