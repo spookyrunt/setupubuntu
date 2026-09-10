@@ -37,6 +37,11 @@ NVIM_URL="$(
     | .browser_download_url
   ' <<<"$RELEASE_JSON"
 )"
+if [[ -z "$NVIM_URL" || "$NVIM_URL" == "null" ]]; then
+  echo "Error: Failed to fetch the Neovim download URL."
+  exit 1
+fi
+
 NVIM_ARCHIVE="nvim-linux-x86_64.tar.gz"
 NVIM_DIR="nvim-linux-x86_64"
 curl -fL "$NVIM_URL" -o "$NVIM_ARCHIVE"
