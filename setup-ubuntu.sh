@@ -262,6 +262,8 @@ for _ in 1; do
   if ! grep -q "export VISUAL=/usr/local/bin/nvim" ~/.profile 2>/dev/null; then
     printf '\nexport VISUAL=/usr/local/bin/nvim' >>~/.profile
   fi
+  git config --global core.editor "nvim"
+  sudo git config --global core.editor "nvim"
   echo "Registered nvim as system default editor."
 
   # Back up existing config if present
@@ -313,8 +315,6 @@ return {
 EOF
   echo "LazyVim is installed."
 done
-
-git config --global core.editor "nvim"
 
 # --- 8. Git Credential Manager (GCM) ---
 echo -e "\n${CYAN}[7/8] Installing and configuring Git Credential Manager...${NC}"

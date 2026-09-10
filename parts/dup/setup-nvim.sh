@@ -61,6 +61,8 @@ fi
 if ! grep -q "export VISUAL=/usr/local/bin/nvim" ~/.profile 2>/dev/null; then
   printf '\nexport VISUAL=/usr/local/bin/nvim' >>~/.profile
 fi
+git config --global core.editor "nvim"
+sudo git config --global core.editor "nvim"
 
 echo "==> Installing LazyVim..."
 # Back up existing config if present
