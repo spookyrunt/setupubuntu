@@ -19,11 +19,11 @@ sudo tar -C /usr/local -xzf "$GO_FILE"
 rm -f "$GO_FILE"
 
 # export go bin
-if ! grep -q 'export PATH="$PATH:$HOME/go/bin"' ~/.bash_profile 2>/dev/null; then
-  printf '\nexport PATH="$PATH:$HOME/go/bin"' >>~/.bash_profile
+if ! grep -q 'export PATH="$PATH:$HOME/go/bin"' ~/.profile 2>/dev/null; then
+  printf '\nexport PATH="$PATH:$HOME/go/bin"' >>~/.profile
 fi
-if ! grep -q 'export PATH="$PATH:/usr/local/go/bin"' ~/.bash_profile 2>/dev/null; then
-  printf '\nexport PATH="$PATH:/usr/local/go/bin"' >>~/.bash_profile
+if ! grep -q 'export PATH="$PATH:/usr/local/go/bin"' ~/.profile 2>/dev/null; then
+  printf '\nexport PATH="$PATH:/usr/local/go/bin"' >>~/.profile
 fi
 
 echo "Installed: ${GO_VERSION}"

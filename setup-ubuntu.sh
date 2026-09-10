@@ -49,11 +49,11 @@ sudo systemctl mask --now cups-browsed
 rustup default stable
 
 # export go bin
-if ! grep -q 'export PATH="$PATH:$HOME/go/bin"' ~/.bash_profile 2>/dev/null; then
-  printf '\nexport PATH="$PATH:$HOME/go/bin"' >>~/.bash_profile
+if ! grep -q 'export PATH="$PATH:$HOME/go/bin"' ~/.profile 2>/dev/null; then
+  printf '\nexport PATH="$PATH:$HOME/go/bin"' >>~/.profile
 fi
-if ! grep -q 'export PATH="$PATH:/usr/local/go/bin"' ~/.bash_profile 2>/dev/null; then
-  printf '\nexport PATH="$PATH:/usr/local/go/bin"' >>~/.bash_profile
+if ! grep -q 'export PATH="$PATH:/usr/local/go/bin"' ~/.profile 2>/dev/null; then
+  printf '\nexport PATH="$PATH:/usr/local/go/bin"' >>~/.profile
 fi
 
 ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
