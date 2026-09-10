@@ -221,18 +221,31 @@ done
 echo -e "\n${CYAN}[6/8] Installing Neovim and LazyVim...${NC}"
 
 for _ in 1; do
-  NVIM_LATEST_TAG=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest |
-    grep '"tag_name":' |
-    sed -E 's/.*"tag_name": *"([^"]+)".*/\1/' || true)
-  CURRENT_VERSION=$(nvim --version 2>/dev/null | head -n 1 | awk '{print $2}' || true)
-  if [ -n "$NVIM_LATEST_TAG" ] && [ "$CURRENT_VERSION" = "$NVIM_LATEST_TAG" ]; then
+  RELEASE_JSON="$(
+    curl -fsSL https://api.github.com/repos/neovim/neovim/releases/latest
+  )"
+  NVIM_LATEST_TAG="$(jq -er '.tag_name' <<<"$RELEASE_JSON")"
+  CURRENT_VERSION="$(
+    nvim --version 2>/dev/null |
+      sed -n '1s/^NVIM //p' ||
+      true
+  )"
+  if [[ "$CURRENT_VERSION" == "$NVIM_LATEST_TAG" ]]; then
     echo "Neovim is already installed and up to date (${CURRENT_VERSION}). Skipping."
     break
   fi
 
-  NVIM_URL=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest |
-    grep "browser_download_url.*nvim-linux-x86_64.tar.gz\"" |
-    cut -d '"' -f 4)
+  NVIM_URL="$(
+    jq -er '
+    .assets[]
+    | select(.name == "nvim-linux-x86_64.tar.gz")
+    | .browser_download_url
+  ' <<<"$RELEASE_JSON"
+  )"
+  if [[ -z "$NVIM_URL" || "$NVIM_URL" == "null" ]]; then
+    echo "Error: Failed to fetch the Neovim download URL."
+    exit 1
+  fi
   curl -L "$NVIM_URL" -o /tmp/nvim-linux-x86_64.tar.gz
   tar xzf /tmp/nvim-linux-x86_64.tar.gz -C /tmp
   sudo rm -rf /opt/nvim

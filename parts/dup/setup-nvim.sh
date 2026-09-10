@@ -17,17 +17,35 @@ if ! command -v fd &>/dev/null; then
   sudo ln -sf $(which fdfind) /usr/local/bin/fd
 fi
 
+RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/neovim/neovim/releases/latest)"
+NVIM_LATEST_TAG="$(jq -er '.tag_name' <<<"$RELEASE_JSON")"
+CURRENT_VERSION="$(
+  nvim --version 2>/dev/null |
+    sed -n '1s/^NVIM //p' ||
+    true
+)"
+if [[ "$CURRENT_VERSION" == "$NVIM_LATEST_TAG" ]]; then
+  echo "Neovim is already installed and up to date ($CURRENT_VERSION). Skipping."
+  exit 0
+fi
+
 echo "==> Installing latest stable Neovim..."
-NVIM_URL=$(curl -s https://api.github.com/repos/neovim/neovim/releases/latest |
-  grep "browser_download_url.*nvim-linux-x86_64.tar.gz\"" |
-  cut -d '"' -f 4)
-curl -LO "$NVIM_URL"
-tar xzf nvim-linux-x86_64.tar.gz
+NVIM_URL="$(
+  jq -er '
+    .assets[]
+    | select(.name == "nvim-linux-x86_64.tar.gz")
+    | .browser_download_url
+  ' <<<"$RELEASE_JSON"
+)"
+NVIM_ARCHIVE="nvim-linux-x86_64.tar.gz"
+NVIM_DIR="nvim-linux-x86_64"
+curl -fL "$NVIM_URL" -o "$NVIM_ARCHIVE"
+tar -xzf "$NVIM_ARCHIVE"
 sudo rm -rf /opt/nvim
-sudo mv nvim-linux-x86_64 /opt/nvim
+sudo mv "$NVIM_DIR" /opt/nvim
 sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
-rm nvim-linux-x86_64.tar.gz
-echo "Neovim $(nvim --version | head -1) installed"
+rm -f "$NVIM_ARCHIVE"
+echo "Neovim $(nvim --version | head -n 1) installed"
 
 echo "==> Registering nvim as system default editor..."
 sudo update-alternatives --install /usr/bin/editor editor /usr/local/bin/nvim 60
