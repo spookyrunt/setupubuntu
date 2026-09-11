@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Add Docker's official GPG key:
-sudo apt update -y
-sudo apt install ca-certificates curl
+sudo apt update
+sudo apt install -y ca-certificates curl
 sudo install -m 0755 -d /etc/apt/keyrings
 sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 sudo chmod a+r /etc/apt/keyrings/docker.asc
@@ -18,10 +18,7 @@ Architectures: $(dpkg --print-architecture)
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
-sudo apt update -y
-
-# Install
-sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-# Test
+# Install docker and test
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo docker run hello-world

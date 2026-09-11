@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-sudo apt update -y
-sudo apt install libfuse2
+sudo apt update
+sudo apt install -y libfuse2
 
 # https://docs.anythingllm.com/installation-desktop/linux#install-using-the-installer-script
 cd

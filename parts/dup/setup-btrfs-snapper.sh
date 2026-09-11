@@ -47,7 +47,7 @@ umount /mnt/topsetup
 #################################################
 
 echo "Installing snapper..."
-apt update -y
+apt update
 apt install -y snapper
 
 echo "Configuring Snapper..."

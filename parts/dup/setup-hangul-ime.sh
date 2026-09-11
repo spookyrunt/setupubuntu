@@ -14,7 +14,7 @@ echo -e "${CYAN}==================================================${NC}"
 
 # 1. Install Packages using apt
 echo -e "\n${CYAN}[1/3] Installing Korean Language Packs & IBus-Hangul...${NC}"
-sudo apt update -y
+sudo apt update
 sudo apt install -y ibus-hangul language-pack-ko
 
 # 2. Restart IBus Background Daemon

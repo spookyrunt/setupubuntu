@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-sudo apt update -y
-sudo apt install cargo -y
+sudo apt update
+sudo apt install -y cargo
 
 # if ! grep -q 'export PATH="$HOME/.cargo/bin:$PATH"' ~/.profile 2>/dev/null; then
 #   printf '\nexport PATH="$HOME/.cargo/bin:$PATH"' >>~/.profile

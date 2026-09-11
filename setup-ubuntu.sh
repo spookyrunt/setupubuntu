@@ -19,7 +19,7 @@ sudo usermod -aG dialout $USER
 # Runs first so curl, git, etc. are available for
 # everything below, before any interactive prompts.
 echo -e "\n${CYAN}[1/8] Updating system and installing packages...${NC}"
-sudo apt update -y
+sudo apt update
 sudo apt upgrade -y
 sudo apt install -y \
   ibus-hangul language-pack-ko gedit \

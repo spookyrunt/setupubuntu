@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-sudo apt update -y
+sudo apt update
 sudo apt install -y gir1.2-gtop-2.0 gir1.2-nm-1.0 gir1.2-clutter-1.0 gnome-system-monitor
 # Install:
 # gnome-extensions and gnome-tweaks

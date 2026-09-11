@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-sudo apt update -y
+sudo apt update
 sudo apt install -y git curl jq
 
 GO_VERSION="$(curl -fsSL 'https://go.dev/dl/?mode=json' | jq -er '.[0].version')"

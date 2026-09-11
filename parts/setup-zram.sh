@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-sudo apt update -y
-sudo apt install systemd-zram-generator
+sudo apt update
+sudo apt install -y systemd-zram-generator
 
 sudo tee /etc/systemd/zram-generator.conf >/dev/null <<'EOF'
 [zram0]

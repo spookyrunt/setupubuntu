@@ -6,7 +6,7 @@ nix profile install nixpkgs#lynis
 sudo ln -s "$HOME/.nix-profile/bin/lynis" /usr/local/bin/lynis || true
 sudo lynis audit system
 
-sudo apt update -y
+sudo apt update
 sudo apt install -y firejail
 #sudo firecfg
 

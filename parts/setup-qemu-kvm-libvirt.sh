@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # setup vm env with qemu and kvm
-sudo apt update -y
+sudo apt update
 sudo apt install -y qemu-system virt-manager libvirt-daemon-system
 # libvirt gives /var/lib/libvirt/images nocow by default
 

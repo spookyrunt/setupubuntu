@@ -14,7 +14,7 @@ echo -e "${CYAN}==================================================${NC}"
 
 # 1. Install required system utilities
 echo -e "\n${CYAN}[1/3] Installing required system utilities...${NC}"
-sudo apt update -y
+sudo apt update
 sudo apt install -y unzip fontconfig curl
 
 # 2. Download and install JetBrainsMono Nerd Font
