@@ -25,8 +25,16 @@ sudo apt install -y \
   gnome-shell-extension-light-style
 # gnome-shell-extension-prefs # replaced by extension-manager and gnome-extensions of gnome-shell
 
-gnome-extensions disable tiling-assistant@ubuntu.com
-gnome-extensions disable ubuntu-web-launchers@ubuntu.com
+gnome-extensions disable tiling-assistant@ubuntu.com || true
+gnome-extensions disable web-search-provider@ubuntu.com || true
+gnome-extensions enable apps-menu@gnome-shell-extensions.gcampax.github.com || true
+gnome-extensions enable drive-menu@gnome-shell-extensions.gcampax.github.com || true
+gnome-extensions enable GPaste@gnome-shell-extensions.gnome.org || true
+gnome-extensions enable light-style@gnome-shell-extensions.gcampax.github.com || true
+gnome-extensions enable places-menu@gnome-shell-extensions.gcampax.github.com || true
+gnome-extensions enable status-icons@gnome-shell-extensions.gcampax.github.com || true
+gnome-extensions enable system-monitor@gnome-shell-extensions.gcampax.github.com || true
+gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com || true
 
 if [ -z "$(ls -A ~/.local/share/themes/Yaru-light/ 2>/dev/null)" ]; then
   mkdir -p ~/.local/share/themes/Yaru-light/
@@ -35,3 +43,5 @@ if [ -z "$(ls -A ~/.local/share/themes/Yaru-light/ 2>/dev/null)" ]; then
     tar -xzv -C ~/.local/share/themes/Yaru-light/ --strip-components=1
 fi
 gsettings set org.gnome.shell.extensions.user-theme name "Yaru-light"
+
+echo "Done. You may reboot."

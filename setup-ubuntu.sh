@@ -82,21 +82,17 @@ echo -e "\n${CYAN}[4/8] Applying GNOME settings...${NC}"
 gsettings set org.gnome.desktop.interface text-scaling-factor 1.10
 gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrainsMono Nerd Font 12'
 gsettings set org.gnome.SessionManager logout-prompt false
-
-HAS_DOCK=$(gsettings list-schemas | grep -q "org.gnome.shell.extensions.dash-to-dock" && echo "yes" || echo "no")
-if [ "$HAS_DOCK" = "yes" ]; then
-  gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'RIGHT'
-  gsettings set org.gnome.shell.extensions.dash-to-dock show-mounts-only-mounted true
-else
-  echo -e "${YELLOW}Skipped dock-position: dash-to-dock extension not found/enabled.${NC}"
-fi
-
+gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'RIGHT' || true
+gsettings set org.gnome.shell.extensions.dash-to-dock show-mounts-only-mounted true || true
 # gsettings set org.gnome.mutter center-new-windows false
 gsettings set org.gnome.mutter attach-modal-dialogs false
+gsettings set org.gnome.desktop.screensaver lock-enabled false
+gsettings set org.gnome.desktop.screensaver lock-delay 0
+gsettings set org.gnome.desktop.session idle-delay 900
 
 # --- 5. Purge Apport and GNOME Text Editor ---
 [ -f "/etc/default/apport" ] && sudo sed -i 's/enabled=1/enabled=0/' /etc/default/apport
-sudo apt purge 'apport*' gnome-text-editor
+sudo apt purge -y 'apport*' gnome-text-editor
 sudo apt autoremove --purge -y
 sudo rm -rf /var/crash/*
 
