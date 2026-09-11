@@ -106,8 +106,8 @@ END {
         print root_dev, "/.snapshots", "btrfs",
               "subvol=/.snapshots,defaults,noatime,compress=zstd", "0", "0"
 }' /etc/fstab |
-tee /tmp/fstab >/dev/null
-mv /tmp/fstab /etc/fstab
+sudo tee /tmp/fstab >/dev/null
+sudo mv /tmp/fstab /etc/fstab
 
 echo "Reloading systemd manager configuration..."
 systemctl daemon-reload
