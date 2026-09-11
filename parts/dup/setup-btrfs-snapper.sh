@@ -50,85 +50,41 @@ echo "Installing snapper..."
 apt update -y
 apt install -y snapper
 
-CONFIG_NAME="root"
-CONFIG_PATH="/etc/snapper/configs/$CONFIG_NAME"
+echo "Configuring Snapper..."
+[ -f /etc/snapper/configs/root ] || snapper -c root create-config /
+snapper -c root set-config \
+  TIMELINE_CREATE=yes \
+  TIMELINE_CLEANUP=yes \
+  TIMELINE_LIMIT_HOURLY=2 \
+  TIMELINE_LIMIT_DAILY=2 \
+  TIMELINE_LIMIT_WEEKLY=2 \
+  TIMELINE_LIMIT_MONTHLY=1 \
+  TIMELINE_LIMIT_YEARLY=0 \
+  NUMBER_CLEANUP=yes \
+  NUMBER_LIMIT=5 \
+  NUMBER_LIMIT_IMPORTANT=5
 
-if [ ! -f "$CONFIG_PATH" ]; then
-  echo "Creating snapper configuration for root..."
-  snapper -c "$CONFIG_NAME" create-config /
-else
-  echo "Snapper configuration for root already exists. Skipping creation."
-fi
-
-CONFIG_BACKUP="${CONFIG_PATH}.bak.$(date +%Y%m%d%H%M%S)"
-cp "$CONFIG_PATH" "$CONFIG_BACKUP"
-echo "Snapper config backed up to $CONFIG_BACKUP"
-
-set_config_value() {
-  local key="$1"
-  local value="$2"
-  if grep -q "^${key}=" "$CONFIG_PATH"; then
-    sed -i "s/^${key}=.*/${key}=\"${value}\"/" "$CONFIG_PATH"
-  else
-    echo "${key}=\"${value}\"" >>"$CONFIG_PATH"
-  fi
-}
-
-echo "Configuring timeline snapshot retention..."
-set_config_value "TIMELINE_CREATE" "yes"
-set_config_value "TIMELINE_CLEANUP" "yes"
-set_config_value "TIMELINE_LIMIT_HOURLY" "2"
-set_config_value "TIMELINE_LIMIT_DAILY" "2"
-set_config_value "TIMELINE_LIMIT_WEEKLY" "2"
-set_config_value "TIMELINE_LIMIT_MONTHLY" "1"
-set_config_value "TIMELINE_LIMIT_YEARLY" "0"
-
-echo "Configuring number-based cleanup for apt/boot snapshots..."
-set_config_value "NUMBER_CLEANUP" "yes"
-set_config_value "NUMBER_LIMIT" "5"
-set_config_value "NUMBER_LIMIT_IMPORTANT" "5"
-
-HOOK_PATH="/etc/apt/apt.conf.d/80snapper"
-STATE_FILE="/run/snapper-apt-pre-number"
-echo "Creating APT hook for Snapper at $HOOK_PATH..."
-cat <<EOF >"$HOOK_PATH"
-DPkg::Pre-Invoke {"[ -x /usr/bin/snapper ] && /usr/bin/snapper -c root create --print-number -t pre --cleanup-algorithm number -d 'APT Pre-Invoke' > ${STATE_FILE} 2>/dev/null || true";};
-DPkg::Post-Invoke {"[ -x /usr/bin/snapper ] && [ -f ${STATE_FILE} ] && /usr/bin/snapper -c root create --cleanup-algorithm number -d 'APT Post-Invoke' -t post --pre-number=\$(cat ${STATE_FILE}) || true";};
+echo "Creating APT hook for Snapper..."
+cat >/etc/apt/apt.conf.d/80snapper <<EOF
+DPkg::Pre-Invoke {"[ -x /usr/bin/snapper ] && /usr/bin/snapper -c root create --print-number -t pre --cleanup-algorithm number -d 'APT Pre-Invoke' > /run/snapper-apt-pre-number 2>/dev/null || true";};
+DPkg::Post-Invoke {"[ -x /usr/bin/snapper ] && [ -f /run/snapper-apt-pre-number ] && /usr/bin/snapper -c root create --cleanup-algorithm number -d 'APT Post-Invoke' -t post --pre-number=\$(cat /run/snapper-apt-pre-number) || true";};
 EOF
-chmod 644 "$HOOK_PATH"
+chmod 644 /etc/apt/apt.conf.d/80snapper
 
-echo "Creating systemd service for boot snapshots..."
-SERVICE_PATH="/etc/systemd/system/snapper-boot.service"
-cat <<'EOF' >"$SERVICE_PATH"
-[Unit]
-Description=Take Snapper Snapshot on Boot
-After=local-fs.target
-ConditionPathExists=/etc/snapper/configs/root
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/snapper -c root create --cleanup-algorithm number -d "Boot Snapshot"
-
-[Install]
-WantedBy=default.target
-EOF
-chmod 644 "$SERVICE_PATH"
-
-echo "Enabling services and timers..."
+echo "Enabling Snapper timers..."
 systemctl daemon-reload
-systemctl enable snapper-boot.service
+systemctl enable snapper-boot.timer
 systemctl enable --now snapper-timeline.timer
 systemctl enable --now snapper-cleanup.timer
 
 echo "Creating initial verification snapshot..."
-snapper -c "$CONFIG_NAME" create -d "Initial automated setup"
+snapper -c root create -d "Initial automated setup"
 
 #################################################
 # PART 3: Normalize fstab options (noatime, compress=zstd)
 #################################################
-FSTAB_PATH="/etc/fstab"
 FSTAB_BAK="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
-cp "$FSTAB_PATH" "$FSTAB_BAK"
+cp /etc/fstab $FSTAB_BAK
 echo "fstab backup created at $FSTAB_BAK"
 
 FSTAB_TMP=$(mktemp)
@@ -155,13 +111,13 @@ while IFS= read -r line || [ -n "$line" ]; do
   else
     echo "$line" >>"$FSTAB_TMP"
   fi
-done <"$FSTAB_PATH"
+done <"/etc/fstab"
 
 if ! grep -qE '\s+/\.snapshots\s' "$FSTAB_TMP"; then
   echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$FSTAB_TMP"
 fi
 
-cat "$FSTAB_TMP" | sudo tee "$FSTAB_PATH"
+cat "$FSTAB_TMP" | sudo tee "/etc/fstab"
 #sudo chown root:root /etc/fstab
 #sudo chmod 644 /etc/fstab
 
@@ -171,7 +127,7 @@ systemctl daemon-reload
 echo "Applying new mount options..."
 if ! mount -a; then
   echo "mount -a failed! Restoring fstab from backup."
-  cp "$FSTAB_BAK" "$FSTAB_PATH"
+  cp "$FSTAB_BAK" "/etc/fstab"
   systemctl daemon-reload
   exit 1
 fi
@@ -184,10 +140,10 @@ mount | grep btrfs
 #################################################
 
 echo "--- Current Snapper Snapshots ---"
-snapper -c "$CONFIG_NAME" list
+snapper -c root list
 
-echo "--- Snapper config ($CONFIG_PATH) ---"
-grep -E '^(TIMELINE|NUMBER)_' "$CONFIG_PATH"
+echo "--- Snapper config (/etc/snapper/configs/root) ---"
+grep -E '^(TIMELINE|NUMBER)_' /etc/snapper/configs/root
 
 if [ "$ROOT_SEPARATED" -eq 1 ]; then
   echo ""

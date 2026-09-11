@@ -388,84 +388,42 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
   sudo umount /mnt/topsetup
 
   # --- 9b. setup snapper ---
-  CONFIG_NAME="root"
-  CONFIG_PATH="/etc/snapper/configs/$CONFIG_NAME"
 
-  if [ ! -f "$CONFIG_PATH" ]; then
-    echo "Creating snapper configuration for root..."
-    sudo snapper -c "$CONFIG_NAME" create-config /
-  else
-    echo "Snapper configuration for root already exists. Skipping creation."
-  fi
+  echo "Configuring Snapper..."
+  [ -f /etc/snapper/configs/root ] || sudo snapper -c root create-config /
+  sudo snapper -c root set-config \
+    TIMELINE_CREATE=yes \
+    TIMELINE_CLEANUP=yes \
+    TIMELINE_LIMIT_HOURLY=2 \
+    TIMELINE_LIMIT_DAILY=2 \
+    TIMELINE_LIMIT_WEEKLY=2 \
+    TIMELINE_LIMIT_MONTHLY=1 \
+    TIMELINE_LIMIT_YEARLY=0 \
+    NUMBER_CLEANUP=yes \
+    NUMBER_LIMIT=5 \
+    NUMBER_LIMIT_IMPORTANT=5
 
-  CONFIG_BACKUP="${CONFIG_PATH}.bak.$(date +%Y%m%d%H%M%S)"
-  sudo cp "$CONFIG_PATH" "$CONFIG_BACKUP"
-  echo "Snapper config backed up to $CONFIG_BACKUP"
-
-  set_config_value() {
-    local key="$1"
-    local value="$2"
-    if sudo grep -q "^${key}=" "$CONFIG_PATH"; then
-      sudo sed -i "s/^${key}=.*/${key}=\"${value}\"/" "$CONFIG_PATH"
-    else
-      echo "${key}=\"${value}\"" | sudo tee -a "$CONFIG_PATH" >/dev/null
-    fi
-  }
-
-  echo "Configuring timeline snapshot retention..."
-  set_config_value "TIMELINE_CREATE" "yes"
-  set_config_value "TIMELINE_CLEANUP" "yes"
-  set_config_value "TIMELINE_LIMIT_HOURLY" "2"
-  set_config_value "TIMELINE_LIMIT_DAILY" "2"
-  set_config_value "TIMELINE_LIMIT_WEEKLY" "2"
-  set_config_value "TIMELINE_LIMIT_MONTHLY" "1"
-  set_config_value "TIMELINE_LIMIT_YEARLY" "0"
-
-  echo "Configuring number-based cleanup for apt/boot snapshots..."
-  set_config_value "NUMBER_CLEANUP" "yes"
-  set_config_value "NUMBER_LIMIT" "5"
-  set_config_value "NUMBER_LIMIT_IMPORTANT" "5"
-
-  HOOK_PATH="/etc/apt/apt.conf.d/80snapper"
-  STATE_FILE="/run/snapper-apt-pre-number"
-  echo "Creating APT hook for Snapper at $HOOK_PATH..."
-  sudo tee "$HOOK_PATH" >/dev/null <<EOF
-DPkg::Pre-Invoke {"[ -x /usr/bin/snapper ] && /usr/bin/snapper -c root create --print-number -t pre --cleanup-algorithm number -d 'APT Pre-Invoke' > ${STATE_FILE} 2>/dev/null || true";};
-DPkg::Post-Invoke {"[ -x /usr/bin/snapper ] && [ -f ${STATE_FILE} ] && /usr/bin/snapper -c root create --cleanup-algorithm number -d 'APT Post-Invoke' -t post --pre-number=\$(cat ${STATE_FILE}) || true";};
+  echo "Creating APT hook for Snapper..."
+  sudo tee /etc/apt/apt.conf.d/80snapper >/dev/null <<EOF
+DPkg::Pre-Invoke {"[ -x /usr/bin/snapper ] && /usr/bin/snapper -c root create --print-number -t pre --cleanup-algorithm number -d 'APT Pre-Invoke' > /run/snapper-apt-pre-number 2>/dev/null || true";};
+DPkg::Post-Invoke {"[ -x /usr/bin/snapper ] && [ -f /run/snapper-apt-pre-number ] && /usr/bin/snapper -c root create --cleanup-algorithm number -d 'APT Post-Invoke' -t post --pre-number=\$(cat /run/snapper-apt-pre-number) || true";};
 EOF
-  sudo chmod 644 "$HOOK_PATH"
+  sudo chmod 644 /etc/apt/apt.conf.d/80snapper
 
-  SERVICE_PATH="/etc/systemd/system/snapper-boot.service"
-  echo "Creating systemd service for boot snapshots..."
-  sudo tee "$SERVICE_PATH" >/dev/null <<'INNEREOF'
-[Unit]
-Description=Take Snapper Snapshot on Boot
-After=local-fs.target
-ConditionPathExists=/etc/snapper/configs/root
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/snapper -c root create --cleanup-algorithm number -d "Boot Snapshot"
-
-[Install]
-WantedBy=default.target
-INNEREOF
-  sudo chmod 644 "$SERVICE_PATH"
-
-  echo "Enabling services and timers..."
+  echo "Enabling Snapper timers..."
   sudo systemctl daemon-reload
-  sudo systemctl enable snapper-boot.service
+  sudo systemctl enable snapper-boot.timer
   sudo systemctl enable --now snapper-timeline.timer
   sudo systemctl enable --now snapper-cleanup.timer
 
   echo "Creating initial verification snapshot..."
-  sudo snapper -c "$CONFIG_NAME" create -d "Initial automated setup"
+  sudo snapper -c root create -d "Initial automated setup"
 
   echo "--- Current Snapper Snapshots ---"
-  sudo snapper -c "$CONFIG_NAME" list
+  sudo snapper -c root list
 
-  echo "--- Snapper config ($CONFIG_PATH) ---"
-  sudo grep -E '^(TIMELINE|NUMBER)_' "$CONFIG_PATH"
+  echo "--- Snapper config (/etc/snapper/configs/root) ---"
+  sudo grep -E '^(TIMELINE|NUMBER)_' /etc/snapper/configs/root
 
   if [ "$ROOT_SEPARATED" -eq 1 ]; then
     echo ""
