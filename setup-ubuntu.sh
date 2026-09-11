@@ -462,7 +462,7 @@ EOF
   sudo systemctl daemon-reload
 
   echo "Applying new mount options..."
-  mount -a || {
+  sudo mount -a || {
     echo "mount -a failed! Restoring fstab from backup."
     sudo cp "$FSTAB_BACKUP" /etc/fstab
     sudo systemctl daemon-reload
@@ -470,7 +470,7 @@ EOF
   }
 
   echo "--- Current Btrfs Mount Status ---"
-  mount | grep btrfs || true
+  sudo mount | grep btrfs || true
 else
   echo -e "${YELLOW}Root filesystem is ${ROOT_FSTYPE}, not btrfs — skipping btrfs tuning and snapper setup.${NC}"
 fi
