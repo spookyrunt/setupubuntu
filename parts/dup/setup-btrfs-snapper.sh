@@ -83,54 +83,42 @@ snapper -c root create -d "Initial automated setup"
 #################################################
 # PART 3: Normalize fstab options (noatime, compress=zstd)
 #################################################
-FSTAB_BAK="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
-cp /etc/fstab $FSTAB_BAK
-echo "fstab backup created at $FSTAB_BAK"
 
-FSTAB_TMP=$(mktemp)
+FSTAB_BACKUP="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
+cp /etc/fstab "$FSTAB_BACKUP"
+echo "fstab backup created at $FSTAB_BACKUP"
 
-while IFS= read -r line || [ -n "$line" ]; do
-  if [[ ! "$line" =~ ^[[:space:]]*# ]] && echo "$line" | awk '{print $3}' | grep -q "^btrfs$"; then
-    current_options=$(echo "$line" | awk '{print $4}')
-    new_options="$current_options"
-
-    if [[ "$new_options" != *noatime* ]]; then
-      new_options="${new_options:+$new_options,}noatime"
-    fi
-
-    if [[ "$new_options" == *compress-force=* ]]; then
-      new_options=$(echo "$new_options" | sed -E 's/compress-force=[a-z0-9:]+/compress-force=zstd/')
-    elif [[ "$new_options" == *compress=* ]]; then
-      new_options=$(echo "$new_options" | sed -E 's/compress=[a-z0-9:]+/compress=zstd/')
-    else
-      new_options="${new_options:+$new_options,}compress=zstd"
-    fi
-
-    updated_line="${line/"$current_options"/"$new_options"}"
-    echo "$updated_line" >>"$FSTAB_TMP"
-  else
-    echo "$line" >>"$FSTAB_TMP"
-  fi
-done <"/etc/fstab"
-
-if ! grep -qE '\s+/\.snapshots\s' "$FSTAB_TMP"; then
-  echo -e "${ROOT_DEV}\t/.snapshots\tbtrfs\tsubvol=/.snapshots,defaults,noatime,compress=zstd\t0\t0" >>"$FSTAB_TMP"
-fi
-
-cat "$FSTAB_TMP" | sudo tee "/etc/fstab"
-#sudo chown root:root /etc/fstab
-#sudo chmod 644 /etc/fstab
+echo "Updating /etc/fstab..."
+awk -v root_dev="$ROOT_DEV" '
+BEGIN { OFS="\t" }
+$2 == "/.snapshots" && !/^#/ { has_snapshots=1 }
+$3 == "btrfs" && !/^#/ {
+    len = split($4, o, ","); n=""
+    for (i = 1; i <= len; i++)
+        if (o[i] != "" && o[i] != "noatime" &&
+            o[i] !~ /^compress(-force)?=/)
+            n = (n ? n "," : "") o[i]
+    $4 = (n ? n "," : "") "noatime,compress=zstd"
+}
+{ print }
+END {
+    if (!has_snapshots)
+        print root_dev, "/.snapshots", "btrfs",
+              "subvol=/.snapshots,defaults,noatime,compress=zstd", "0", "0"
+}' /etc/fstab |
+tee /tmp/fstab >/dev/null
+mv /tmp/fstab /etc/fstab
 
 echo "Reloading systemd manager configuration..."
 systemctl daemon-reload
 
 echo "Applying new mount options..."
-if ! mount -a; then
-  echo "mount -a failed! Restoring fstab from backup."
-  cp "$FSTAB_BAK" "/etc/fstab"
-  systemctl daemon-reload
-  exit 1
-fi
+mount -a || {
+    echo "mount -a failed! Restoring fstab from backup."
+    cp "$FSTAB_BACKUP" /etc/fstab
+    systemctl daemon-reload
+    exit 1
+}
 
 echo "--- Current Btrfs Mount Status ---"
 mount | grep btrfs
