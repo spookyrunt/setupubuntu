@@ -78,7 +78,7 @@ systemctl enable --now snapper-timeline.timer
 systemctl enable --now snapper-cleanup.timer
 
 echo "Creating initial verification snapshot..."
-snapper -c root create -d "Initial automated setup"
+snapper -c root create -d "automated setup" -c number
 
 #################################################
 # PART 3: Normalize fstab options (noatime, compress=zstd)
@@ -106,7 +106,7 @@ END {
         print root_dev, "/.snapshots", "btrfs",
               "subvol=/.snapshots,defaults,noatime,compress=zstd", "0", "0"
 }' /etc/fstab |
-sudo tee /tmp/fstab >/dev/null
+  sudo tee /tmp/fstab >/dev/null
 sudo mv /tmp/fstab /etc/fstab
 
 echo "Reloading systemd manager configuration..."
@@ -114,10 +114,10 @@ systemctl daemon-reload
 
 echo "Applying new mount options..."
 mount -a || {
-    echo "mount -a failed! Restoring fstab from backup."
-    cp "$FSTAB_BACKUP" /etc/fstab
-    systemctl daemon-reload
-    exit 1
+  echo "mount -a failed! Restoring fstab from backup."
+  cp "$FSTAB_BACKUP" /etc/fstab
+  systemctl daemon-reload
+  exit 1
 }
 
 echo "--- Current Btrfs Mount Status ---"

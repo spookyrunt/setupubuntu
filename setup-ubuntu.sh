@@ -413,7 +413,7 @@ EOF
   sudo systemctl enable --now snapper-cleanup.timer
 
   echo "Creating initial verification snapshot..."
-  sudo snapper -c root create -d "Initial automated setup"
+  sudo snapper -c root create -d "automated setup" -c number
 
   echo "--- Current Snapper Snapshots ---"
   sudo snapper -c root list
