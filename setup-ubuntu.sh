@@ -28,7 +28,7 @@ sudo apt install -y \
   xclip xsel wl-clipboard \
   ripgrep fd-find fzf sd \
   python3 python3-pip nodejs npm \
-  cargo libevdev-dev \
+  rustup libevdev-dev \
   etckeeper \
   snapper btrfs-assistant # btrfs-progs btrfs-heatmap btrfs-compsize
 
@@ -436,7 +436,7 @@ EOF
   FSTAB_BAK="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
   sudo cp /etc/fstab "$FSTAB_BAK"
   echo "fstab backup created at $FSTAB_BAK"
-  
+
   echo "Updating /etc/fstab..."
   awk -v root_dev="$ROOT_DEV" '
   BEGIN { OFS="\t" }
@@ -455,7 +455,7 @@ EOF
           print root_dev, "/.snapshots", "btrfs",
                 "subvol=/.snapshots,defaults,noatime,compress=zstd", "0", "0"
   }' /etc/fstab |
-  sudo tee /tmp/fstab >/dev/null
+    sudo tee /tmp/fstab >/dev/null
   sudo mv /tmp/fstab /etc/fstab
 
   echo "Reloading systemd manager configuration..."
@@ -463,10 +463,10 @@ EOF
 
   echo "Applying new mount options..."
   mount -a || {
-      echo "mount -a failed! Restoring fstab from backup."
-      sudo cp "$FSTAB_BACKUP" /etc/fstab
-      sudo systemctl daemon-reload
-      exit 1
+    echo "mount -a failed! Restoring fstab from backup."
+    sudo cp "$FSTAB_BACKUP" /etc/fstab
+    sudo systemctl daemon-reload
+    exit 1
   }
 
   echo "--- Current Btrfs Mount Status ---"
