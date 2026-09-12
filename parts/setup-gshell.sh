@@ -52,4 +52,4 @@ gnome-extensions enable GPaste@gnome-shell-extensions.gnome.org || true
 gnome-extensions disable tiling-assistant@ubuntu.com || true
 gnome-extensions disable web-search-provider@ubuntu.com || true
 
-echo "Done. You may reboot."
+echo "Done. You may relogin."
