@@ -37,8 +37,7 @@ for uuid in "${extensions[@]}"; do
   if curl -fsSL --retry 2 \
     "https://extensions.gnome.org/download-extension/${uuid}.shell-extension.zip?shell_version=${shell_api}" \
     -o "$tmpdir/${uuid}.zip"; then
-    gnome-extensions install --force "$tmpdir/${uuid}.zip" ||
-      printf 'Install failed: %s\n' "$uuid"
+    gnome-extensions install --force "$tmpdir/${uuid}.zip" || printf 'Install failed: %s\n' "$uuid"
   else
     printf 'Download failed or unsupported: %s\n' "$uuid"
   fi
