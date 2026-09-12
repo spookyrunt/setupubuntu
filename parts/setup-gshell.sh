@@ -13,35 +13,43 @@ sudo apt install -y gir1.2-gtop-2.0 gir1.2-nm-1.0 gir1.2-clutter-1.0 gnome-syste
 # taskbar icons for legacy apps on top right
 # clipboard management
 sudo apt install -y \
-  gnome-shell gnome-tweaks \
+  gnome-shell \
+  gnome-tweaks \
   gnome-shell-extension-manager \
-  gnome-shell-extension-user-theme \
-  gnome-shell-extension-system-monitor \
-  gnome-shell-extension-apps-menu \
-  gnome-shell-extension-places-menu \
-  gnome-shell-extension-drive-menu \
-  gnome-shell-extension-status-icons \
-  gnome-shell-extension-gpaste \
-  gnome-shell-extension-light-style
-# gnome-shell-extension-prefs # replaced by extension-manager and gnome-extensions of gnome-shell
+  gnome-shell-extension-gpaste
 
+extensions=(
+  "user-theme@gnome-shell-extensions.gcampax.github.com"
+  "system-monitor@gnome-shell-extensions.gcampax.github.com"
+  "apps-menu@gnome-shell-extensions.gcampax.github.com"
+  "places-menu@gnome-shell-extensions.gcampax.github.com"
+  "drive-menu@gnome-shell-extensions.gcampax.github.com"
+  "status-icons@gnome-shell-extensions.gcampax.github.com"
+  "light-style@gnome-shell-extensions.gcampax.github.com"
+)
+
+# Download and install
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+shell_api="$(gnome-shell --version | grep -oE '[0-9]+(\.[0-9]+)+' | cut -d. -f1)"
+for uuid in "${extensions[@]}"; do
+  printf 'Installing %s...\n' "$uuid"
+  if curl -fsSL --retry 2 \
+    "https://extensions.gnome.org/download-extension/${uuid}.shell-extension.zip?shell_version=${shell_api}" \
+    -o "$tmpdir/${uuid}.zip"; then
+    gnome-extensions install --force "$tmpdir/${uuid}.zip" ||
+      printf 'Install failed: %s\n' "$uuid"
+  else
+    printf 'Download failed or unsupported: %s\n' "$uuid"
+  fi
+done
+
+# Enable or disable
+for uuid in "${extensions[@]}"; do
+  gnome-extensions enable "$uuid" || true
+done
+gnome-extensions enable GPaste@gnome-shell-extensions.gnome.org || true
 gnome-extensions disable tiling-assistant@ubuntu.com || true
 gnome-extensions disable web-search-provider@ubuntu.com || true
-gnome-extensions enable apps-menu@gnome-shell-extensions.gcampax.github.com || true
-gnome-extensions enable drive-menu@gnome-shell-extensions.gcampax.github.com || true
-gnome-extensions enable GPaste@gnome-shell-extensions.gnome.org || true
-gnome-extensions enable light-style@gnome-shell-extensions.gcampax.github.com || true
-gnome-extensions enable places-menu@gnome-shell-extensions.gcampax.github.com || true
-gnome-extensions enable status-icons@gnome-shell-extensions.gcampax.github.com || true
-gnome-extensions enable system-monitor@gnome-shell-extensions.gcampax.github.com || true
-gnome-extensions enable user-theme@gnome-shell-extensions.gcampax.github.com || true
-
-if [ -z "$(ls -A ~/.local/share/themes/Yaru-light/ 2>/dev/null)" ]; then
-  mkdir -p ~/.local/share/themes/Yaru-light/
-  curl -sL $(curl -s https://api.github.com/repos/spookyrunt/Yaru-light/releases/latest |
-    jq -r '.assets[0].browser_download_url') |
-    tar -xzv -C ~/.local/share/themes/Yaru-light/ --strip-components=1
-fi
-gsettings set org.gnome.shell.extensions.user-theme name "Yaru-light"
 
 echo "Done. You may reboot."
