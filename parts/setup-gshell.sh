@@ -44,11 +44,31 @@ for uuid in "${extensions[@]}"; do
 done
 
 # Enable or disable
-for uuid in "${extensions[@]}"; do
-  gnome-extensions enable "$uuid" || true
-done
-gnome-extensions enable GPaste@gnome-shell-extensions.gnome.org || true
+python3 - "${extensions[@]}" <<'PY'
+import ast, subprocess, sys
+raw = subprocess.check_output(
+    ["gsettings", "get", "org.gnome.shell", "enabled-extensions"],
+    text=True,
+).strip()
+current = ast.literal_eval(raw.removeprefix("@as "))
+current += ["GPaste@gnome-shell-extensions.gnome.org"]
+value = repr(list(dict.fromkeys(current + sys.argv[1:])))
+subprocess.run([
+    "gsettings", "set", "org.gnome.shell", "enabled-extensions", value
+], check=True)
+print(value)
+PY
 gnome-extensions disable tiling-assistant@ubuntu.com || true
 gnome-extensions disable web-search-provider@ubuntu.com || true
+
+# Yaru-light
+if [ -z "$(ls -A ~/.local/share/themes/Yaru-light/ 2>/dev/null)" ]; then
+  mkdir -p ~/.local/share/themes/Yaru-light/
+  curl -sL $(curl -s https://api.github.com/repos/spookyrunt/Yaru-light/releases/latest |
+    jq -r '.assets[0].browser_download_url') |
+    tar -xzv -C ~/.local/share/themes/Yaru-light/ --strip-components=1
+fi
+export GSETTINGS_SCHEMA_DIR="$HOME/.local/share/gnome-shell/extensions/user-theme@gnome-shell-extensions.gcampax.github.com/schemas"
+gsettings set org.gnome.shell.extensions.user-theme name "Yaru-light"
 
 echo "Done. You may relogin."
