@@ -20,15 +20,15 @@ jq '
   })
   |
   .permission = ((.permission // {}) + {
-    "read": "allow",
+    "read": "ask",
     "edit": "ask",
     "bash": "ask",
-    "glob": "allow",
-    "grep": "allow",
+    "glob": "ask",
+    "grep": "ask",
     "task": "ask",
     "skill": "ask",
-    "lsp": "allow",
-    "question": "allow",
+    "lsp": "ask",
+    "question": "ask",
     "webfetch": "ask",
     "websearch": "ask",
     "external_directory": "ask",
