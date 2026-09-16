@@ -38,7 +38,9 @@ if ! command -v fd &>/dev/null; then
 fi
 
 # setup etckeeper
+sudo git config --global user.name u
 sudo etckeeper init
+sudo etckeeper commit -m init
 sudo sed -i 's/^#* *AVOID_DAILY_AUTOCOMMITS=.*/AVOID_DAILY_AUTOCOMMITS=1/' /etc/etckeeper/etckeeper.conf
 sudo systemctl mask --now etckeeper.timer
 
