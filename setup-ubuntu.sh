@@ -29,10 +29,15 @@ sudo apt install -y \
   ripgrep fd-find fzf sd \
   python3 python3-pip nodejs npm \
   rustup libevdev-dev \
-  etckeeper \
-  snapper btrfs-assistant # btrfs-progs btrfs-heatmap btrfs-compsize
+  etckeeper
 
-# setup fd nvim uses
+# btrfs
+FSTYPE=$(findmnt -n -o FSTYPE /)
+if [ "$FSTYPE" = "btrfs" ]; then
+  sudo apt install -y snapper btrfs-assistant # btrfs-progs btrfs-heatmap btrfs-compsize
+fi
+
+# setup fd
 if ! command -v fd &>/dev/null; then
   sudo ln -sf "$(which fdfind)" /usr/local/bin/fd
 fi
@@ -50,13 +55,8 @@ sudo systemctl mask --now cups-browsed
 # setup rustup cargo
 rustup default stable
 
-# export go bin
-if ! grep -q 'export PATH="$PATH:$HOME/go/bin"' ~/.profile 2>/dev/null; then
-  printf '\nexport PATH="$PATH:$HOME/go/bin"' >>~/.profile
-fi
-if ! grep -q 'export PATH="$PATH:/usr/local/go/bin"' ~/.profile 2>/dev/null; then
-  printf '\nexport PATH="$PATH:/usr/local/go/bin"' >>~/.profile
-fi
+echo -e "\n${CYAN}Installing Go...${NC}"
+./parts/setup-go.sh
 
 echo -e "\n${CYAN}Setting up Korean Hangul IME...${NC}"
 ./parts/setup-hangul-ime.sh
@@ -79,10 +79,10 @@ echo -e "\n${CYAN}Setting up Git Credential Manager...${NC}"
 
 # Btrfs root separation + snapper + fstab tuning
 echo -e "\n${CYAN}Setting up Btrfs/Snapper...${NC}"
-if [ "$(findmnt -n -o FSTYPE /)" = "btrfs" ]; then
+if [ "$FSTYPE" = "btrfs" ]; then
   ./parts/setup-btrfs-snapper.sh
 else
-  echo -e "${YELLOW}Root filesystem is not btrfs — skipping btrfs tuning and snapper setup.${NC}"
+  echo -e "${YELLOW}Root filesystem is not btrfs - skipping btrfs tuning and snapper setup.${NC}"
 fi
 
 echo -e "\n${CYAN}==================================================${NC}"

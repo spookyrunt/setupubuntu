@@ -13,10 +13,10 @@ if [[ "$CURRENT_VERSION" == "$GO_VERSION" ]]; then
 fi
 
 GO_FILE="${GO_VERSION}.linux-amd64.tar.gz"
-curl -fLO "https://go.dev/dl/${GO_FILE}"
+curl -fL "https://go.dev/dl/${GO_FILE}" -o "/tmp/${GO_FILE}"
 sudo rm -rf /usr/local/go
-sudo tar -C /usr/local -xzf "$GO_FILE"
-rm -f "$GO_FILE"
+sudo tar -C /usr/local -xzf "/tmp/${GO_FILE}"
+rm -f "/tmp/${GO_FILE}"
 
 # export go bin
 if ! grep -q 'export PATH="$PATH:$HOME/go/bin"' ~/.profile 2>/dev/null; then
