@@ -27,14 +27,15 @@ else
   fi
 fi
 
-VENDOR_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_VENDOR_ID=' | cut -d= -f2)
-MODEL_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_MODEL_ID=' | cut -d= -f2)
+VENDOR_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_VENDOR_ID=' | cut -d= -f2 || true)
+MODEL_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_MODEL_ID=' | cut -d= -f2 || true)
 
 echo "Targeting device: ${MOUSE_DEVICE}"
 
-if [ ! -f "${EVSIEVE_BIN}" ]; then
-  echo "Warning: ${EVSIEVE_BIN} not found. Initiating dynamic version lookup and build process..."
-
+# Installation — skip build if evsieve is already present
+if [ -f "$EVSIEVE_BIN" ]; then
+  echo "evsieve is already installed. Skipping download and compilation."
+else
   read -rp "Which evsieve version do you want to build? [default: latest]: " VERSION_INPUT
   VERSION_INPUT="${VERSION_INPUT:-latest}"
 
@@ -57,16 +58,13 @@ if [ ! -f "${EVSIEVE_BIN}" ]; then
   fi
   echo "Using evsieve version: ${EVSIEVE_VERSION}"
 
-  if [ -f "/tmp/evsieve-${EVSIEVE_VERSION}/target/release/evsieve" ]; then
-    sudo cp "/tmp/evsieve-${EVSIEVE_VERSION}/target/release/evsieve" "${EVSIEVE_BIN}"
-  else
-    echo "Error: evsieve binary is missing entirely. Please run the full compilation process for version ${EVSIEVE_VERSION}." >&2
-    exit 1
-  fi
+  wget "https://github.com/KarsMulder/evsieve/archive/v${EVSIEVE_VERSION}.tar.gz" -O "/tmp/evsieve-${EVSIEVE_VERSION}.tar.gz"
+  tar -xzf "/tmp/evsieve-${EVSIEVE_VERSION}.tar.gz" -C /tmp
+  cargo build --release --manifest-path="/tmp/evsieve-${EVSIEVE_VERSION}/Cargo.toml"
+  sudo cp "/tmp/evsieve-${EVSIEVE_VERSION}/target/release/evsieve" "$EVSIEVE_BIN"
 fi
 
-echo "Updating Systemd service specification..."
-sudo tee "${SERVICE_PATH}" >/dev/null <<EOF
+sudo tee "$SERVICE_PATH" >/dev/null <<EOF
 [Unit]
 Description=Invert scroll wheel for selected mouse
 After=multi-user.target
@@ -95,11 +93,5 @@ RestartSec=1
 WantedBy=multi-user.target
 EOF
 
-echo "Reloading systemd daemon and restarting service..."
 sudo systemctl daemon-reload
-sudo systemctl enable scroll-invert
-sudo systemctl reset-failed scroll-invert
-sudo systemctl restart scroll-invert
-
-echo "Success: scroll-invert service has been reconfigured and initiated."
-sudo systemctl status scroll-invert --no-pager
+sudo systemctl enable --now scroll-invert

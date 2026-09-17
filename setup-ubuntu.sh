@@ -8,17 +8,17 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 echo -e "${CYAN}==================================================${NC}"
-echo -e "${YELLOW}Fresh Ubuntu Setup: Hangul, Nerd Font, GNOME, evsieve, Neovim, Btrfs/Snapper${NC}"
+echo -e "${YELLOW}Fresh Ubuntu Setup: Hangul, Nerd Font, GNOME, Neovim, Btrfs/Snapper${NC}"
 echo -e "${CYAN}==================================================${NC}"
 
-# --- 0. User permission ---
+# User permission
 sudo chage -m 0 -M -1 $USER
 sudo usermod -aG dialout $USER
 
-# --- 1. System update + all packages, once (Snapper integrated) ---
+# System update + all packages, once (Snapper integrated)
 # Runs first so curl, git, etc. are available for
 # everything below, before any interactive prompts.
-echo -e "\n${CYAN}[1/8] Updating system and installing packages...${NC}"
+echo -e "\n${CYAN}Updating system and installing packages...${NC}"
 sudo apt update
 sudo apt upgrade -y
 sudo apt install -y \
@@ -61,13 +61,13 @@ fi
 ROOT_FSTYPE=$(findmnt -n -o FSTYPE /)
 echo "Detected root filesystem type: ${ROOT_FSTYPE}"
 
-# --- 2. Hangul IME ---
-echo -e "\n${CYAN}[2/8] Setting up Korean Hangul IME...${NC}"
+# Hangul IME
+echo -e "\n${CYAN}Setting up Korean Hangul IME...${NC}"
 ibus restart
 gsettings set org.gnome.desktop.input-sources sources "[('ibus', 'hangul')]"
 
-# --- 3. Nerd Font ---
-echo -e "\n${CYAN}[3/8] Installing JetBrainsMono Nerd Font...${NC}"
+# Nerd Font
+echo -e "\n${CYAN}Installing JetBrainsMono Nerd Font...${NC}"
 FONT_DIR="$HOME/.local/share/fonts"
 if [ -f "$FONT_DIR/JetBrainsMonoNerdFont-Regular.ttf" ]; then
   echo "JetBrainsMono Nerd Font is already installed. Skipping..."
@@ -79,8 +79,8 @@ else
   fc-cache -f "$FONT_DIR"
 fi
 
-# --- 4. GNOME settings ---
-echo -e "\n${CYAN}[4/8] Applying GNOME settings...${NC}"
+# GNOME settings
+echo -e "\n${CYAN}Applying GNOME settings...${NC}"
 gsettings set org.gnome.desktop.interface text-scaling-factor 1.10
 gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrainsMono Nerd Font 12'
 gsettings set org.gnome.SessionManager logout-prompt false
@@ -92,132 +92,14 @@ gsettings set org.gnome.desktop.screensaver lock-enabled false
 gsettings set org.gnome.desktop.screensaver lock-delay 0
 gsettings set org.gnome.desktop.session idle-delay 900
 
-# --- 5. Purge Apport and GNOME Text Editor ---
+# Purge Apport and GNOME Text Editor
 [ -f "/etc/default/apport" ] && sudo sed -i 's/enabled=1/enabled=0/' /etc/default/apport
 sudo apt purge -y 'apport*' gnome-text-editor
 sudo apt autoremove --purge -y
 sudo rm -rf /var/crash/*
 
-# --- 6. evsieve scroll inversion ---
-echo -e "\n${CYAN}[5/8] Building and installing evsieve...${NC}"
-
-for _ in 1; do
-  read -rp "Which evsieve version do you want to build? [default: latest, 's' or 'skip' to skip]: " VERSION_INPUT
-  VERSION_INPUT="${VERSION_INPUT:-latest}"
-
-  if [ "$VERSION_INPUT" = "s" ] || [ "$VERSION_INPUT" = "skip" ]; then
-    echo -e "${YELLOW}Skipping evsieve/scroll-invert setup as requested by user.${NC}"
-    break
-  fi
-
-  LATEST_TAG=$(curl -s https://api.github.com/repos/KarsMulder/evsieve/releases/latest |
-    grep '"tag_name":' |
-    sed -E 's/.*"tag_name": *"v?([^"]+)".*/\1/' || true)
-
-  if [ "$VERSION_INPUT" != "latest" ]; then
-    EVSIEVE_VERSION="$VERSION_INPUT"
-  elif [ -n "$LATEST_TAG" ]; then
-    EVSIEVE_VERSION="$LATEST_TAG"
-  else
-    FALLBACK_EVSIEVE_VERSION="1.4.0"
-    echo "Could not reach GitHub. Falling back to: ${FALLBACK_EVSIEVE_VERSION}"
-    EVSIEVE_VERSION="$FALLBACK_EVSIEVE_VERSION"
-  fi
-
-  echo "Using evsieve version: ${EVSIEVE_VERSION}"
-
-  # Get device
-  DEFAULT_MOUSE_DEVICE="/dev/input/by-id/usb-HL_0000_00_00_00-01_USB_Device-if01-event-mouse"
-  MOUSE_DEVICE=""
-  VENDOR_ID=""
-  MODEL_ID=""
-  mapfile -t MOUSE_CANDIDATES < <(ls /dev/input/by-id/ 2>/dev/null | grep -i 'event-mouse' || true)
-  if [ "${#MOUSE_CANDIDATES[@]}" -eq 0 ]; then
-    echo "No mouse devices found. Falling back to default: ${DEFAULT_MOUSE_DEVICE}"
-    MOUSE_DEVICE="$DEFAULT_MOUSE_DEVICE"
-  else
-    echo "Available mouse devices:"
-    for i in "${!MOUSE_CANDIDATES[@]}"; do
-      echo "   $((i + 1))) ${MOUSE_CANDIDATES[$i]}"
-    done
-
-    read -rp "Select a device by number, press Enter for the default: " CHOICE
-
-    if [[ "$CHOICE" =~ ^[0-9]+$ ]] && [ "$CHOICE" -ge 1 ] && [ "$CHOICE" -le "${#MOUSE_CANDIDATES[@]}" ]; then
-      MOUSE_DEVICE="/dev/input/by-id/${MOUSE_CANDIDATES[$((CHOICE - 1))]}"
-    else
-      echo "No valid selection made — using default: ${DEFAULT_MOUSE_DEVICE}"
-      MOUSE_DEVICE="$DEFAULT_MOUSE_DEVICE"
-    fi
-  fi
-
-  # Get device ID
-  # If the resolved device (selected or default) doesn't actually exist,
-  # don't fail the whole step — just skip scroll-invert.
-  if [ ! -e "$MOUSE_DEVICE" ]; then
-    echo -e "${YELLOW}Warning: ${MOUSE_DEVICE} does not exist on this machine.${NC}"
-  else
-    VENDOR_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_VENDOR_ID=' | cut -d= -f2 || true)
-    MODEL_ID=$(udevadm info --query=property --name="${MOUSE_DEVICE}" | grep 'ID_MODEL_ID=' | cut -d= -f2 || true)
-    if [ -z "$VENDOR_ID" ] || [ -z "$MODEL_ID" ]; then
-      echo -e "${YELLOW}Warning: could not read vendor/model ID for ${MOUSE_DEVICE}.${NC}"
-    else
-      echo "Targeting device: ${MOUSE_DEVICE}"
-    fi
-  fi
-
-  # Installation
-  if [ -z "$VENDOR_ID" ] || [ -z "$MODEL_ID" ]; then
-    echo -e "${YELLOW}Skipping evsieve/scroll-invert setup.${NC}"
-  else
-    EVSIEVE_BIN="/usr/local/bin/evsieve"
-    INSTALLED_VERSION=$("$EVSIEVE_BIN" --version 2>/dev/null | awk '{print $2}' || true)
-    if [ "$INSTALLED_VERSION" = "$EVSIEVE_VERSION" ]; then
-      echo "evsieve version ${EVSIEVE_VERSION} is already installed. Skipping download and compilation."
-    else
-      wget "https://github.com/KarsMulder/evsieve/archive/v${EVSIEVE_VERSION}.tar.gz" -O "/tmp/evsieve-${EVSIEVE_VERSION}.tar.gz"
-      tar -xzf "/tmp/evsieve-${EVSIEVE_VERSION}.tar.gz" -C /tmp
-      cargo build --release --manifest-path="/tmp/evsieve-${EVSIEVE_VERSION}/Cargo.toml"
-      sudo cp "/tmp/evsieve-${EVSIEVE_VERSION}/target/release/evsieve" /usr/local/bin/
-    fi
-
-    sudo tee /etc/systemd/system/scroll-invert.service >/dev/null <<EOF
-[Unit]
-Description=Invert scroll wheel for selected mouse
-After=multi-user.target
-StartLimitIntervalSec=0
-
-[Service]
-Type=simple
-ExecStart=/bin/sh -c '\\
-  TARGET_PATH=\$(find /dev/input/by-id/ -type l -name "*event-mouse*" | xargs -r -I {} sh -c "\\
-    udevadm info --query=property --name=\"{}\" | grep -q \"ID_VENDOR_ID=${VENDOR_ID}\" && \\
-    udevadm info --query=property --name=\"{}\" | grep -q \"ID_MODEL_ID=${MODEL_ID}\" && \\
-    echo \"{}\" \\
-  " 2>/dev/null | head -n 1); \\
-  exec ${EVSIEVE_BIN} \\
-    --input "\$TARGET_PATH" grab persist=exit \\
-    --map rel:wheel rel:wheel:0-x \\
-    --map rel:wheel_hi_res rel:wheel_hi_res:0-x \\
-    --map rel:hwheel rel:hwheel:0-x \\
-    --map rel:hwheel_hi_res rel:hwheel_hi_res:0-x \\
-    --output \\
-'
-Restart=always
-RestartSec=1
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    sudo systemctl daemon-reload
-    sudo systemctl enable --now scroll-invert
-  fi
-
-done
-
-# --- 7. Neovim + LazyVim ---
-echo -e "\n${CYAN}[6/8] Installing Neovim and LazyVim...${NC}"
+# Neovim + LazyVim
+echo -e "\n${CYAN}Installing Neovim and LazyVim...${NC}"
 
 for _ in 1; do
   RELEASE_JSON="$(
@@ -315,8 +197,8 @@ EOF
   echo "LazyVim is installed."
 done
 
-# --- 8. Git Credential Manager (GCM) ---
-echo -e "\n${CYAN}[7/8] Installing and configuring Git Credential Manager...${NC}"
+# Git Credential Manager (GCM)
+echo -e "\n${CYAN}Installing and configuring Git Credential Manager...${NC}"
 
 for _ in 1; do
   GCM_DEB_URL=$(curl -s https://api.github.com/repos/git-ecosystem/git-credential-manager/releases/latest |
@@ -340,12 +222,12 @@ for _ in 1; do
   echo "Git Credential Manager configured with secretservice."
 done
 
-# --- 9. Btrfs root separation + snapper + fstab tuning ---
-echo -e "\n${CYAN}[8/8] Checking filesystem and configuring Btrfs/Snapper...${NC}"
+# Btrfs root separation + snapper + fstab tuning
+echo -e "\n${CYAN}Checking filesystem and configuring Btrfs/Snapper...${NC}"
 if [ "$ROOT_FSTYPE" = "btrfs" ]; then
   echo -e "${GREEN}Root filesystem is btrfs — separating root, tuning fstab, and configuring snapper.${NC}"
 
-  # --- 9a. Separate root subvolume from snapshot tree ---
+  # Separate root subvolume from snapshot tree
   # Must run BEFORE snapper starts taking automated snapshots, so the
   # root we end up on is a clean, independent subvolume rather than
   # something nested under .snapshots.
@@ -385,8 +267,7 @@ if [ "$ROOT_FSTYPE" = "btrfs" ]; then
 
   sudo umount /mnt/topsetup
 
-  # --- 9b. setup snapper ---
-
+  # setup snapper
   echo "Configuring Snapper..."
   [ -f /etc/snapper/configs/root ] || sudo snapper -c root create-config /
   sudo snapper -c root set-config \
@@ -430,7 +311,7 @@ EOF
     echo "  sudo btrfs subvolume get-default /"
   fi
 
-  # --- 9c. fstab mount option tuning ---
+  # fstab mount option tuning
   FSTAB_BAK="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
   sudo cp /etc/fstab "$FSTAB_BAK"
   echo "fstab backup created at $FSTAB_BAK"
