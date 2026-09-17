@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-echo -e "\n${CYAN}Applying GNOME settings...${NC}"
 gsettings set org.gnome.desktop.interface text-scaling-factor 1.10
 gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrainsMono Nerd Font 12'
 gsettings set org.gnome.SessionManager logout-prompt false

@@ -1,24 +1,19 @@
 #!/bin/bash
 set -euo pipefail
 
-if [ "$EUID" -ne 0 ]; then
-  echo "Elevating privileges (sudo)..."
-  exec sudo bash "$0" "$@"
-fi
-
 #################################################
 # PART 1: Separate root subvolume from snapshot tree
 #################################################
 
-ROOT_DEV=$(findmnt -no UUID /)
+ROOT_DEV=$(sudo findmnt -no UUID /)
 ROOT_DEV="/dev/disk/by-uuid/${ROOT_DEV}"
 echo "Root device: $ROOT_DEV"
 
-mkdir -p /mnt/topsetup
-mount -o subvolid=5 "$ROOT_DEV" /mnt/topsetup
-trap 'umount /mnt/topsetup 2>/dev/null || true' EXIT
+sudo mkdir -p /mnt/topsetup
+sudo mount -o subvolid=5 "$ROOT_DEV" /mnt/topsetup
+trap 'sudo umount /mnt/topsetup 2>/dev/null || true' EXIT
 
-CURRENT_DEFAULT_PATH=$(btrfs subvolume get-default / | awk '{print $NF}')
+CURRENT_DEFAULT_PATH=$(sudo btrfs subvolume get-default / | awk '{print $NF}')
 NEW_ROOT_NAME="@"
 
 if [[ "$CURRENT_DEFAULT_PATH" == *".snapshots/"* ]]; then
@@ -27,12 +22,12 @@ if [[ "$CURRENT_DEFAULT_PATH" == *".snapshots/"* ]]; then
 
   if [ -d "/mnt/topsetup/${NEW_ROOT_NAME}" ]; then
     echo "${NEW_ROOT_NAME} already exists but is stale after a rollback. Replacing it."
-    btrfs subvolume delete "/mnt/topsetup/${NEW_ROOT_NAME}"
+    sudo btrfs subvolume delete "/mnt/topsetup/${NEW_ROOT_NAME}"
   fi
-  btrfs subvolume snapshot "$SRC_PATH" "/mnt/topsetup/${NEW_ROOT_NAME}"
+  sudo btrfs subvolume snapshot "$SRC_PATH" "/mnt/topsetup/${NEW_ROOT_NAME}"
 
-  NEW_ID=$(btrfs subvolume list /mnt/topsetup | grep "path ${NEW_ROOT_NAME}$" | awk '{print $2}')
-  btrfs subvolume set-default "$NEW_ID" /mnt/topsetup
+  NEW_ID=$(sudo btrfs subvolume list /mnt/topsetup | grep "path ${NEW_ROOT_NAME}$" | awk '{print $2}')
+  sudo btrfs subvolume set-default "$NEW_ID" /mnt/topsetup
   echo "Default subvolume set to ${NEW_ROOT_NAME} (ID ${NEW_ID})."
   ROOT_SEPARATED=1
 else
@@ -40,19 +35,19 @@ else
   ROOT_SEPARATED=0
 fi
 
-umount /mnt/topsetup
+sudo umount /mnt/topsetup
 
 #################################################
 # PART 2: Install and configure snapper
 #################################################
 
 echo "Installing snapper..."
-apt update
-apt install -y snapper
+sudo apt update
+sudo apt install -y snapper
 
 echo "Configuring Snapper..."
-[ -f /etc/snapper/configs/root ] || snapper -c root create-config /
-snapper -c root set-config \
+[ -f /etc/snapper/configs/root ] || sudo snapper -c root create-config /
+sudo snapper -c root set-config \
   TIMELINE_CREATE=yes \
   TIMELINE_CLEANUP=yes \
   TIMELINE_LIMIT_HOURLY=2 \
@@ -65,31 +60,31 @@ snapper -c root set-config \
   NUMBER_LIMIT_IMPORTANT=5
 
 echo "Creating APT hook for Snapper..."
-cat >/etc/apt/apt.conf.d/80snapper <<EOF
+sudo tee /etc/apt/apt.conf.d/80snapper >/dev/null <<EOF
 DPkg::Pre-Invoke {"[ -x /usr/bin/snapper ] && /usr/bin/snapper -c root create --print-number -t pre --cleanup-algorithm number -d 'APT Pre-Invoke' > /run/snapper-apt-pre-number 2>/dev/null || true";};
 DPkg::Post-Invoke {"[ -x /usr/bin/snapper ] && [ -f /run/snapper-apt-pre-number ] && /usr/bin/snapper -c root create --cleanup-algorithm number -d 'APT Post-Invoke' -t post --pre-number=\$(cat /run/snapper-apt-pre-number) || true";};
 EOF
-chmod 644 /etc/apt/apt.conf.d/80snapper
+sudo chmod 644 /etc/apt/apt.conf.d/80snapper
 
 echo "Enabling Snapper timers..."
-systemctl daemon-reload
-systemctl enable snapper-boot.timer
-systemctl enable --now snapper-timeline.timer
-systemctl enable --now snapper-cleanup.timer
+sudo systemctl daemon-reload
+sudo systemctl enable snapper-boot.timer
+sudo systemctl enable --now snapper-timeline.timer
+sudo systemctl enable --now snapper-cleanup.timer
 
 echo "Creating initial verification snapshot..."
-snapper -c root create -d "automated setup" -c number
+sudo snapper -c root create -d "automated setup" -c number
 
 #################################################
 # PART 3: Normalize fstab options (noatime, compress=zstd)
 #################################################
 
 FSTAB_BACKUP="/etc/fstab.bak.$(date +%Y%m%d%H%M%S)"
-cp /etc/fstab "$FSTAB_BACKUP"
+sudo cp /etc/fstab "$FSTAB_BACKUP"
 echo "fstab backup created at $FSTAB_BACKUP"
 
 echo "Updating /etc/fstab..."
-awk -v root_dev="$ROOT_DEV" '
+sudo awk -v root_dev="$ROOT_DEV" '
 BEGIN { OFS="\t" }
 $2 == "/.snapshots" && $0 !~ /^[[:space:]]*#/ { has_snapshots=1 }
 $3 == "btrfs" && $0 !~ /^[[:space:]]*#/ {
@@ -110,28 +105,28 @@ END {
 sudo mv /tmp/fstab /etc/fstab
 
 echo "Reloading systemd manager configuration..."
-systemctl daemon-reload
+sudo systemctl daemon-reload
 
 echo "Applying new mount options..."
-mount -a || {
+sudo mount -a || {
   echo "mount -a failed! Restoring fstab from backup."
-  cp "$FSTAB_BACKUP" /etc/fstab
-  systemctl daemon-reload
+  sudo cp "$FSTAB_BACKUP" /etc/fstab
+  sudo systemctl daemon-reload
   exit 1
 }
 
 echo "--- Current Btrfs Mount Status ---"
-mount | grep btrfs
+sudo mount | grep btrfs
 
 #################################################
 # PART 4: Final verification
 #################################################
 
 echo "--- Current Snapper Snapshots ---"
-snapper -c root list
+sudo snapper -c root list
 
 echo "--- Snapper config (/etc/snapper/configs/root) ---"
-grep -E '^(TIMELINE|NUMBER)_' /etc/snapper/configs/root
+sudo grep -E '^(TIMELINE|NUMBER)_' /etc/snapper/configs/root
 
 if [ "$ROOT_SEPARATED" -eq 1 ]; then
   echo ""
@@ -139,4 +134,4 @@ if [ "$ROOT_SEPARATED" -eq 1 ]; then
   echo "After reboot, verify with: cat /proc/cmdline and sudo btrfs subvolume get-default /"
 fi
 
-echo "Setup complete: clean root separation layout established without grub overrides."
+echo "Btrfs and snapper setup complete: clean root separation layout established without grub overrides."

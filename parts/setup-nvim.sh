@@ -1,13 +1,8 @@
 #!/bin/bash
 set -euo pipefail
-
 # Neovim + LazyVim setup script
 
-echo "==> Updating apt..."
-sudo apt update && sudo apt upgrade -y
-
-echo "==> Installing dependencies..."
-sudo apt install -y git curl unzip build-essential \
+sudo apt install -y git curl jq unzip build-essential \
   xclip xsel wl-clipboard \
   ripgrep fd-find fzf sd \
   python3 python3-pip nodejs npm
@@ -42,14 +37,12 @@ if [[ -z "$NVIM_URL" || "$NVIM_URL" == "null" ]]; then
   exit 1
 fi
 
-NVIM_ARCHIVE="nvim-linux-x86_64.tar.gz"
-NVIM_DIR="nvim-linux-x86_64"
-curl -fL "$NVIM_URL" -o "$NVIM_ARCHIVE"
-tar -xzf "$NVIM_ARCHIVE"
+curl -fL "$NVIM_URL" -o nvim-linux-x86_64.tar.gz
+tar -xzf nvim-linux-x86_64.tar.gz
 sudo rm -rf /opt/nvim
-sudo mv "$NVIM_DIR" /opt/nvim
+sudo mv nvim-linux-x86_64 /opt/nvim
 sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
-rm -f "$NVIM_ARCHIVE"
+rm -f nvim-linux-x86_64.tar.gz
 echo "Neovim $(nvim --version | head -n 1) installed"
 
 echo "==> Registering nvim as system default editor..."
