@@ -58,7 +58,7 @@ rustup default stable
 echo -e "\n${CYAN}Installing Go...${NC}"
 ./parts/setup-go.sh
 
-echo -e "\n${CYAN}Setting up Korean Hangul IME...${NC}"
+echo -e "\n${CYAN}Setting up Hangul IME...${NC}"
 ./parts/setup-hangul-ime.sh
 
 echo -e "\n${CYAN}Installing JetBrainsMono Nerd Font...${NC}"
