@@ -343,7 +343,7 @@ EOF
   echo "Applying new mount options..."
   sudo mount -a || {
     echo "mount -a failed! Restoring fstab from backup."
-    sudo cp "$FSTAB_BACKUP" /etc/fstab
+    sudo cp "$FSTAB_BAK" /etc/fstab
     sudo systemctl daemon-reload
     exit 1
   }

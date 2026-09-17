@@ -1,10 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+echo -e "\n${CYAN}Applying GNOME settings...${NC}"
 gsettings set org.gnome.desktop.interface text-scaling-factor 1.10
-gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'RIGHT' || true
-gsettings set org.gnome.shell.extensions.dash-to-dock show-mounts-only-mounted true || true
 gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrainsMono Nerd Font 12'
 gsettings set org.gnome.SessionManager logout-prompt false
+gsettings set org.gnome.shell.extensions.dash-to-dock dock-position 'RIGHT' || true
+gsettings set org.gnome.shell.extensions.dash-to-dock show-mounts-only-mounted true || true
 # gsettings set org.gnome.mutter center-new-windows false
 gsettings set org.gnome.mutter attach-modal-dialogs false
+gsettings set org.gnome.desktop.screensaver lock-enabled false
+gsettings set org.gnome.desktop.screensaver lock-delay 0
+gsettings set org.gnome.desktop.session idle-delay 900
