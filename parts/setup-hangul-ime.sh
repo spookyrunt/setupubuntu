@@ -9,3 +9,6 @@ ibus restart
 
 # Set GNOME settings
 gsettings set org.gnome.desktop.input-sources sources "[('ibus', 'hangul')]"
+
+echo ""
+echo "Finished setting up IBus-Hangul and the Korean language pack."

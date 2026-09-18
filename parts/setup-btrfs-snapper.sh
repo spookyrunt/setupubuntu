@@ -134,4 +134,5 @@ if [ "$ROOT_SEPARATED" -eq 1 ]; then
   echo "After reboot, verify with: cat /proc/cmdline and sudo btrfs subvolume get-default /"
 fi
 
+echo ""
 echo "Btrfs and snapper setup complete: clean root separation layout established without grub overrides."

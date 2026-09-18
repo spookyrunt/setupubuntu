@@ -5,3 +5,6 @@ set -euo pipefail
 sudo apt purge 'apport*' -y
 sudo apt autoremove --purge -y
 sudo rm -rf /var/crash/*
+
+echo ""
+echo "Finished puring apport."

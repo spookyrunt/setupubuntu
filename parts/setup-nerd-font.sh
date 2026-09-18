@@ -15,9 +15,9 @@ rm ~/.local/share/fonts/JetBrainsMono.zip
 
 fc-cache -f ~/.local/share/fonts
 
-# echo ""
-# echo "[SUCCESS] Font downloaded and cached locally!"
-# echo "--------------------------------------------------"
+echo ""
+echo "Font downloaded and cached locally."
+# echo "=================================================="
 # echo "You may apply the font manually to your terminal:"
 # echo "1. Open your terminal application settings/preferences."
 # echo "2. Locate the active profile configuration or text preferences."

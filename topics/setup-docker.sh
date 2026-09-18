@@ -19,6 +19,5 @@ Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
 # Install docker and test
-sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 sudo docker run hello-world

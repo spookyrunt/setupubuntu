@@ -95,3 +95,7 @@ EOF
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now scroll-invert
+
+echo ""
+echo "Finished installing the evsieve scroll invert service."
+

@@ -36,3 +36,6 @@ jq '
   })
 ' ~/.config/opencode/opencode.json >"/tmp/opencode.json.$$" &&
   mv "/tmp/opencode.json.$$" ~/.config/opencode/opencode.json
+
+echo ""
+echo "Done."

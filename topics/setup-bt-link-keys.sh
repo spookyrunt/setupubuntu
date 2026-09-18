@@ -11,4 +11,5 @@ sudo apt install -y cargo
 sudo cargo install dualboot-bt-link-keys --root /usr/local
 sudo chmod +rx /usr/local/bin/dualboot-bt-link-keys
 
+echo ""
 echo 'Run: sudo dualboot-bt-link-keys /mnt/YOUR_MOUNT_POINT --write --restart-bluetooth'

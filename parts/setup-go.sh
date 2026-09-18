@@ -26,4 +26,5 @@ if ! grep -q 'export PATH="$PATH:/usr/local/go/bin"' ~/.profile 2>/dev/null; the
   printf '\nexport PATH="$PATH:/usr/local/go/bin"' >>~/.profile
 fi
 
+echo ""
 echo "Installed: ${GO_VERSION}"

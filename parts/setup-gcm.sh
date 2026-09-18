@@ -24,4 +24,6 @@ fi
 git-credential-manager configure
 git config --global credential.credentialStore secretservice
 git config --global core.editor "nvim"
+
+echo ""
 echo "Git Credential Manager configured with secretservice."

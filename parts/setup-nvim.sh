@@ -24,7 +24,7 @@ if [[ "$CURRENT_VERSION" == "$NVIM_LATEST_TAG" ]]; then
   exit 0
 fi
 
-echo "==> Installing latest stable Neovim..."
+echo "Installing latest stable Neovim..."
 NVIM_URL="$(
   jq -er '
     .assets[]
@@ -45,7 +45,7 @@ sudo ln -sf /opt/nvim/bin/nvim /usr/local/bin/nvim
 rm -f nvim-linux-x86_64.tar.gz
 echo "Neovim $(nvim --version | head -n 1) installed"
 
-echo "==> Registering nvim as system default editor..."
+echo "Registering nvim as system default editor..."
 sudo update-alternatives --install /usr/bin/editor editor /usr/local/bin/nvim 60
 sudo update-alternatives --set editor /usr/local/bin/nvim
 if ! grep -q "export EDITOR=/usr/local/bin/nvim" ~/.profile 2>/dev/null; then
@@ -57,13 +57,13 @@ fi
 git config --global core.editor "nvim"
 sudo git config --global core.editor "nvim"
 
-echo "==> Installing LazyVim..."
+echo "Installing LazyVim..."
 # Back up existing config if present
 [ -d ~/.config/nvim ] && mv ~/.config/nvim ~/.config/nvim.bak.$(date +%s)
 git clone https://github.com/LazyVim/starter ~/.config/nvim
 rm -rf ~/.config/nvim/.git
 
-echo "==> Writing LazyVim plugin configs..."
+echo "Writing LazyVim plugin configs..."
 mkdir -p ~/.config/nvim/lua/plugins
 
 cat >~/.config/nvim/lua/plugins/colorscheme.lua <<'EOF'
@@ -109,4 +109,4 @@ return {
 EOF
 
 echo ""
-echo "==> Done!"
+echo "Finished setting up nvim with its addons."

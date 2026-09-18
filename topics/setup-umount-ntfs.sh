@@ -25,5 +25,6 @@ sudo systemctl daemon-reload
 sudo systemctl enable umount-ntfs
 sudo systemctl reset-failed umount-ntfs
 sudo systemctl restart umount-ntfs
+echo ""
 echo "Success: umount-ntfs service has been configured and initiated."
 sudo systemctl status umount-ntfs --no-pager

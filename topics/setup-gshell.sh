@@ -71,4 +71,5 @@ fi
 export GSETTINGS_SCHEMA_DIR="$HOME/.local/share/gnome-shell/extensions/user-theme@gnome-shell-extensions.gcampax.github.com/schemas"
 gsettings set org.gnome.shell.extensions.user-theme name "Yaru-light"
 
+echo ""
 echo "Done. You may relogin."
