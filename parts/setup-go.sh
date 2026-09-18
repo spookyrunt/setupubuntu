@@ -19,11 +19,11 @@ sudo tar -C /usr/local -xzf "/tmp/${GO_FILE}"
 rm -f "/tmp/${GO_FILE}"
 
 # export go bin
-if ! grep -q 'export PATH="$PATH:$HOME/go/bin"' ~/.profile 2>/dev/null; then
-  printf '\nexport PATH="$PATH:$HOME/go/bin"' >>~/.profile
+if ! grep -q 'export PATH="$HOME/go/bin:$PATH"' ~/.profile 2>/dev/null; then
+  printf '\nexport PATH="$HOME/go/bin:$PATH"' >>~/.profile
 fi
-if ! grep -q 'export PATH="$PATH:/usr/local/go/bin"' ~/.profile 2>/dev/null; then
-  printf '\nexport PATH="$PATH:/usr/local/go/bin"' >>~/.profile
+if ! grep -q 'export PATH="/usr/local/go/bin:$PATH"' ~/.profile 2>/dev/null; then
+  printf '\nexport PATH="/usr/local/go/bin:$PATH"' >>~/.profile
 fi
 
 echo ""
